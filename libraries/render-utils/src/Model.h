@@ -154,7 +154,10 @@ public:
     /// Returns a reference to the shared geometry.
     const Geometry::Pointer& getGeometry() const { return _renderGeometry; }
     /// Returns a reference to the shared collision geometry.
+    // TODO: Remove
+#ifdef RENDER_MODEL_BOUNDING_BOXES
     const Geometry::Pointer& getCollisionGeometry() const { return _collisionGeometry; }
+#endif
 
     const QVariantMap getTextures() const { assert(isLoaded()); return _renderGeometry->getTextures(); }
     Q_INVOKABLE virtual void setTextures(const QVariantMap& textures);
@@ -260,7 +263,10 @@ public:
 
     // returns 'true' if needs fullUpdate after geometry change
     virtual bool updateGeometry();
+    // TODO: Remove
+#ifdef RENDER_MODEL_BOUNDING_BOXES
     void setCollisionMesh(graphics::MeshPointer mesh);
+#endif
 
     void setLoadingPriority(float priority) { _loadingPriority = priority; }
 
@@ -362,7 +368,10 @@ protected:
     bool getJointPosition(int jointIndex, glm::vec3& position) const;
 
     Geometry::Pointer _renderGeometry; // only ever set by its watcher
+    // TODO: Remove
+#ifdef RENDER_MODEL_BOUNDING_BOXES
     Geometry::Pointer _collisionGeometry;
+#endif
 
     GeometryResourceWatcher _renderWatcher;
 
@@ -430,9 +439,12 @@ protected:
     QVector<TriangleSet> _modelSpaceMeshTriangleSets; // model space triangles for all sub meshes
 
 
-    void createRenderItemSet();
+    void createRenderItemSet(); // TODO: Remove later
     virtual void createVisibleRenderItemSet();
+    // TODO: Remove
+#ifdef RENDER_MODEL_BOUNDING_BOXES
     virtual void createCollisionRenderItemSet();
+#endif
 
     bool _isWireframe;
     bool _useDualQuaternionSkinning { false };
@@ -443,8 +455,11 @@ protected:
 
     static AbstractViewStateInterface* _viewState;
 
+    // TODO: Remove
+#ifdef RENDER_MODEL_BOUNDING_BOXES
     QVector<std::shared_ptr<MeshPartPayload>> _collisionRenderItems;
     QMap<render::ItemID, render::PayloadPointer> _collisionRenderItemsMap;
+#endif
 
     QVector<std::shared_ptr<ModelMeshPartPayload>> _modelMeshRenderItems;
     QMap<render::ItemID, render::PayloadPointer> _modelMeshRenderItemsMap;

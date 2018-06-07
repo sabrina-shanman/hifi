@@ -48,8 +48,13 @@ float Model::FAKE_DIMENSION_PLACEHOLDER = -1.0f;
 #define HTTP_INVALID_COM "http://invalid.com"
 
 const int NUM_COLLISION_HULL_COLORS = 24;
+// TODO: Remove
+#ifdef RENDER_MODEL_BOUNDING_BOXES
 std::vector<graphics::MaterialPointer> _collisionMaterials;
+#endif
 
+// TODO: Remove
+#ifdef RENDER_MODEL_BOUNDING_BOXES
 void initCollisionMaterials() {
     // generates bright colors in red, green, blue, yellow, magenta, and cyan spectrums
     // (no browns, greys, or dark shades)
@@ -87,11 +92,15 @@ void initCollisionMaterials() {
         }
     }
 }
+#endif
 
 Model::Model(QObject* parent, SpatiallyNestable* spatiallyNestableOverride) :
     QObject(parent),
     _renderGeometry(),
+    // TODO: Remove
+#ifdef RENDER_MODEL_BOUNDING_BOXES
     _collisionGeometry(),
+#endif
     _renderWatcher(_renderGeometry),
     _spatiallyNestableOverride(spatiallyNestableOverride),
     _translation(0.0f),
@@ -310,6 +319,8 @@ void Model::updateRenderItems() {
             });
         }
 
+        // TODO: Remove
+#ifdef RENDER_MODEL_BOUNDING_BOXES
         Transform collisionMeshOffset;
         collisionMeshOffset.setIdentity();
         foreach(auto itemID, self->_collisionRenderItemsMap.keys()) {
@@ -319,6 +330,7 @@ void Model::updateRenderItems() {
                 data.updateTransform(modelTransform, collisionMeshOffset);
             });
         }
+#endif
 
         AbstractViewStateInterface::instance()->getMain3DScene()->enqueueTransaction(transaction);
     });
@@ -777,11 +789,14 @@ void Model::updateRenderItemsKey(const render::ScenePointer& scene) {
             data.updateKey(renderItemsKey);
         });
     }
+    //TODO: Remove
+#ifdef RENDER_MODEL_BOUNDING_BOXES
     foreach(auto item, _collisionRenderItemsMap.keys()) {
         transaction.updateItem<ModelMeshPartPayload>(item, [renderItemsKey](ModelMeshPartPayload& data) {
             data.updateKey(renderItemsKey);
         });
     }
+#endif
     scene->enqueueTransaction(transaction);
 }
 
@@ -862,12 +877,19 @@ const render::ItemKey Model::getRenderItemKeyGlobalFlags() const {
 bool Model::addToScene(const render::ScenePointer& scene,
                        render::Transaction& transaction,
                        render::Item::Status::Getters& statusGetters) {
+    // TODO: Remove
+#ifdef RENDER_MODEL_BOUNDING_BOXES
     bool readyToRender = _collisionGeometry || isLoaded();
+#else
+    bool readyToRender = isLoaded();
+#endif
     if (!_addedToScene && readyToRender) {
         createRenderItemSet();
     }
 
     bool somethingAdded = false;
+    // TODO: Remove
+#ifdef RENDER_MODEL_BOUNDING_BOXES
     if (_collisionGeometry) {
         if (_collisionRenderItemsMap.empty()) {
             foreach (auto renderItem, _collisionRenderItems) {
@@ -882,6 +904,7 @@ bool Model::addToScene(const render::ScenePointer& scene,
             somethingAdded = !_collisionRenderItemsMap.empty();
         }
     } else {
+#endif
         if (_modelMeshRenderItemsMap.empty()) {
 
             bool hasTransparent = false;
@@ -905,7 +928,10 @@ bool Model::addToScene(const render::ScenePointer& scene,
             _renderInfoDrawCalls = _modelMeshRenderItemsMap.count();
             _renderInfoHasTransparent = hasTransparent;
         }
+    // TODO: Remove
+#ifdef RENDER_MODEL_BOUNDING_BOXES
     }
+#endif
 
     if (somethingAdded) {
         _addedToScene = true;
@@ -926,11 +952,14 @@ void Model::removeFromScene(const render::ScenePointer& scene, render::Transacti
     _modelMeshMaterialNames.clear();
     _modelMeshRenderItemShapes.clear();
 
+    // TODO: Remove
+#ifdef RENDER_MODEL_BOUNDING_BOXES
     foreach(auto item, _collisionRenderItemsMap.keys()) {
         transaction.removeItem(item);
     }
     _collisionRenderItems.clear();
     _collisionRenderItemsMap.clear();
+#endif
     _addedToScene = false;
 
     _renderInfoVertexCount = 0;
@@ -1505,7 +1534,10 @@ void Model::deleteGeometry() {
     _rig.destroyAnimGraph();
     _blendedBlendshapeCoefficients.clear();
     _renderGeometry.reset();
+    // TODO: Remove
+#ifdef RENDER_MODEL_BOUNDING_BOXES
     _collisionGeometry.reset();
+#endif
 }
 
 void Model::overrideModelTransformAndOffset(const Transform& transform, const glm::vec3& offset) {
@@ -1533,17 +1565,24 @@ const render::ItemIDs& Model::fetchRenderItemIDs() const {
     return _modelMeshRenderItemIDs;
 }
 
+// TODO: Remove later
 void Model::createRenderItemSet() {
     updateClusterMatrices();
+    // TODO: Remove
+#ifdef RENDER_MODEL_BOUNDING_BOXES
     if (_collisionGeometry) {
         if (_collisionRenderItems.empty()) {
             createCollisionRenderItemSet();
         }
     } else {
+#endif
         if (_modelMeshRenderItems.empty()) {
             createVisibleRenderItemSet();
         }
+    // TODO: Remove
+#ifdef RENDER_MODEL_BOUNDING_BOXES
     }
+#endif
 };
 
 void Model::createVisibleRenderItemSet() {
@@ -1592,7 +1631,10 @@ void Model::createVisibleRenderItemSet() {
     }
 }
 
+// TODO: Remove
+#ifdef RENDER_MODEL_BOUNDING_BOXES
 void Model::createCollisionRenderItemSet() {
+    
     assert((bool)_collisionGeometry);
     if (_collisionMaterials.empty()) {
         initCollisionMaterials();
@@ -1626,6 +1668,7 @@ void Model::createCollisionRenderItemSet() {
         }
     }
 }
+#endif
 
 bool Model::isRenderable() const {
     return !_meshStates.empty() || (isLoaded() && _renderGeometry->getMeshes().empty());
@@ -1710,7 +1753,10 @@ public:
     }
 };
 
+// TODO: Remove
+#ifdef RENDER_MODEL_BOUNDING_BOXES
 void Model::setCollisionMesh(graphics::MeshPointer mesh) {
+    
     if (mesh) {
         _collisionGeometry = std::make_shared<CollisionRenderGeometry>(mesh);
     } else {
@@ -1718,6 +1764,7 @@ void Model::setCollisionMesh(graphics::MeshPointer mesh) {
     }
     _needsFixupInScene = true;
 }
+#endif
 
 ModelBlender::ModelBlender() :
     _pendingBlenders(0) {

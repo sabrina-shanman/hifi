@@ -32,8 +32,11 @@ public:
     bool updateGeometry() override;
 
     void createVisibleRenderItemSet() override;
+    // TODO: Remove
+#ifdef RENDER_MODEL_BOUNDING_BOXES
     void createCollisionRenderItemSet() override;
-
+#endif
+    
     virtual void updateClusterMatrices() override;
     void updateRenderItems() override;
 

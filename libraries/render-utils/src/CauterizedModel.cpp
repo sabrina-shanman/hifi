@@ -98,10 +98,14 @@ void CauterizedModel::createVisibleRenderItemSet() {
     }
 }
 
+// TODO: Remove
+#ifdef RENDER_MODEL_BOUNDING_BOXES
 void CauterizedModel::createCollisionRenderItemSet() {
+
     // Temporary HACK: use base class method for now
     Model::createCollisionRenderItemSet();
 }
+#endif
 
 void CauterizedModel::updateClusterMatrices() {
     PerformanceTimer perfTimer("CauterizedModel::updateClusterMatrices");
@@ -187,11 +191,14 @@ void CauterizedModel::updateRenderItems() {
             return;
         }
 
+        // TODO: Remove
+#ifdef RENDER_MODEL_BOUNDING_BOXES
         glm::vec3 scale = getScale();
         if (_collisionGeometry) {
             // _collisionGeometry is already scaled
             scale = glm::vec3(1.0f);
         }
+#endif
         _needsUpdateClusterMatrices = true;
         _renderItemsNeedUpdate = false;
 

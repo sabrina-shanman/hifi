@@ -1419,16 +1419,22 @@ void ModelEntityRenderer::doRenderUpdateSynchronousTyped(const ScenePointer& sce
         if (DependencyManager::get<EntityTreeRenderer>()->shouldRenderDebugHulls() && type != SHAPE_TYPE_STATIC_MESH && type != SHAPE_TYPE_NONE) {
             // NOTE: it is OK if _collisionMeshKey is nullptr
             graphics::MeshPointer mesh = collisionMeshCache.getMesh(_collisionMeshKey);
+            // TODO: Remove/replace
+#ifdef RENDER_MODEL_BOUNDING_BOXES
             // NOTE: the model will render the collisionGeometry if it has one
             _model->setCollisionMesh(mesh);
+#endif
         } else {
             if (_collisionMeshKey) {
                 // release mesh
                 collisionMeshCache.releaseMesh(_collisionMeshKey);
             }
+                // TODO: Remove/replace
+#ifdef RENDER_MODEL_BOUNDING_BOXES
             // clear model's collision geometry
             graphics::MeshPointer mesh = nullptr;
             _model->setCollisionMesh(mesh);
+#endif
         }
     }
 
