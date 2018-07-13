@@ -382,14 +382,15 @@ void RenderableModelEntityItem::computeShapeInfo(ShapeInfo& shapeInfo) {
         // TODO: assert that all geometries exist and are loaded
         //assert(_model && _model->isLoaded() && _compoundShapeResource && _compoundShapeResource->isLoaded());
         const FBXGeometry& collisionGeometry = _compoundShapeResource->getFBXGeometry();
-
+        const QVector<FBXMesh> collisionMeshes = collisionGeometry.collisionMeshes.size() > 0 ? collisionGeometry.collisionMeshes : collisionGeometry.meshes;
+        
         ShapeInfo::PointCollection& pointCollection = shapeInfo.getPointCollection();
         pointCollection.clear();
         uint32_t i = 0;
 
         // the way OBJ files get read, each section under a "g" line is its own meshPart.  We only expect
         // to find one actual "mesh" (with one or more meshParts in it), but we loop over the meshes, just in case.
-        foreach (const FBXMesh& mesh, collisionGeometry.meshes) {
+        foreach (const FBXMesh& mesh, collisionMeshes) {
             // each meshPart is a convex hull
             foreach (const FBXMeshPart &meshPart, mesh.parts) {
                 pointCollection.push_back(QVector<glm::vec3>());
@@ -477,11 +478,13 @@ void RenderableModelEntityItem::computeShapeInfo(ShapeInfo& shapeInfo) {
         // compute meshPart local transforms
         QVector<glm::mat4> localTransforms;
         const FBXGeometry& fbxGeometry = model->getFBXGeometry();
-        int numFbxMeshes = fbxGeometry.meshes.size();
+        const QVector<FBXMesh> collisionMeshes = fbxGeometry.collisionMeshes.size() > 0 ? fbxGeometry.collisionMeshes : fbxGeometry.meshes;
+        
+        int numFbxMeshes = collisionMeshes.size();
         int totalNumVertices = 0;
         glm::mat4 invRegistraionOffset = glm::translate(dimensions * (getRegistrationPoint() - ENTITY_ITEM_DEFAULT_REGISTRATION_POINT));
         for (int i = 0; i < numFbxMeshes; i++) {
-            const FBXMesh& mesh = fbxGeometry.meshes.at(i);
+            const FBXMesh& mesh = collisionMeshes.at(i);
             if (mesh.clusters.size() > 0) {
                 const FBXCluster& cluster = mesh.clusters.at(0);
                 auto jointMatrix = model->getRig().getJointTransform(cluster.jointIndex);
@@ -500,8 +503,7 @@ void RenderableModelEntityItem::computeShapeInfo(ShapeInfo& shapeInfo) {
             return;
         }
 
-        auto& meshes = model->getGeometry()->getMeshes();
-        int32_t numMeshes = (int32_t)(meshes.size());
+        int32_t numMeshes = (int32_t)(collisionMeshes.size());
 
         const int MAX_ALLOWED_MESH_COUNT = 1000;
         if (numMeshes > MAX_ALLOWED_MESH_COUNT) {
@@ -524,7 +526,8 @@ void RenderableModelEntityItem::computeShapeInfo(ShapeInfo& shapeInfo) {
         Extents extents;
         int32_t meshCount = 0;
         int32_t pointListIndex = 0;
-        for (auto& mesh : meshes) {
+        for (auto& collisionMesh : collisionMeshes) {
+            auto& mesh = collisionMesh._mesh;
             if (!mesh) {
                 continue;
             }

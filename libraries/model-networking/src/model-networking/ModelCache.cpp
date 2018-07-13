@@ -280,7 +280,6 @@ void GeometryDefinitionResource::downloadFinished(const QByteArray& data) {
 void GeometryDefinitionResource::setGeometryDefinition(FBXGeometry::Pointer fbxGeometry) {
     // Assume ownership of the geometry pointer
     _fbxGeometry = fbxGeometry;
-
     // Copy materials
     QHash<QString, size_t> materialIDAtlas;
     for (const FBXMaterial& material : _fbxGeometry->materials) {
@@ -290,6 +289,7 @@ void GeometryDefinitionResource::setGeometryDefinition(FBXGeometry::Pointer fbxG
 
     std::shared_ptr<GeometryMeshes> meshes = std::make_shared<GeometryMeshes>();
     std::shared_ptr<GeometryMeshParts> parts = std::make_shared<GeometryMeshParts>();
+
     int meshID = 0;
     for (const FBXMesh& mesh : _fbxGeometry->meshes) {
         // Copy mesh pointers
@@ -302,6 +302,7 @@ void GeometryDefinitionResource::setGeometryDefinition(FBXGeometry::Pointer fbxG
         }
         meshID++;
     }
+
     _meshes = meshes;
     _meshParts = parts;
 

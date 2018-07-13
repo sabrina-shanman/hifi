@@ -305,6 +305,7 @@ public:
     bool hasSkeletonJoints;
 
     QVector<FBXMesh> meshes;
+    QVector<FBXMesh> collisionMeshes; // Optionally defined special meshes for collision in the physics engine.
     QVector<QString> scripts;
 
     QHash<QString, FBXMaterial> materials;

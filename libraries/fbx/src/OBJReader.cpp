@@ -658,6 +658,7 @@ FBXGeometry::Pointer OBJReader::readOBJ(QByteArray& model, const QVariantHash& m
     _url = url;
     geometry.meshExtents.reset();
     geometry.meshes.append(FBXMesh());
+    geometry.collisionMeshes.append(FBXMesh());
 
     try {
         // call parseOBJGroup as long as it's returning true.  Each successful call will
@@ -666,6 +667,9 @@ FBXGeometry::Pointer OBJReader::readOBJ(QByteArray& model, const QVariantHash& m
 
         FBXMesh& mesh = geometry.meshes[0];
         mesh.meshIndex = 0;
+
+        FBXMesh& collisionMesh = geometry.collisionMeshes[0];
+        collisionMesh.meshIndex = 0;
 
         geometry.joints.resize(1);
         geometry.joints[0].isFree = false;
@@ -686,6 +690,14 @@ FBXGeometry::Pointer OBJReader::readOBJ(QByteArray& model, const QVariantHash& m
             0, 0, 1, 0,
             0, 0, 0, 1);
         mesh.clusters.append(cluster);
+
+        FBXCluster collisionCluster;
+        collisionCluster.jointIndex = 0;
+        collisionCluster.inverseBindMatrix = glm::mat4(1, 0, 0, 0,
+            0, 1, 0, 0,
+            0, 0, 1, 0,
+            0, 0, 0, 1);
+        collisionMesh.clusters.append(collisionCluster);
 
         QMap<QString, int> materialMeshIdMap;
         QVector<FBXMeshPart> fbxMeshParts;
@@ -737,6 +749,7 @@ FBXGeometry::Pointer OBJReader::readOBJ(QByteArray& model, const QVariantHash& m
         int unmodifiedMeshPartCount = mesh.parts.count();
         mesh.parts.clear();
         mesh.parts = QVector<FBXMeshPart>(fbxMeshParts);
+        collisionMesh.parts = QVector<FBXMeshPart>(unmodifiedMeshPartCount);
 
         for (int i = 0, meshPartCount = 0; i < unmodifiedMeshPartCount; i++, meshPartCount++) {
             FaceGroup faceGroup = faceGroups[meshPartCount];
@@ -744,65 +757,12 @@ FBXGeometry::Pointer OBJReader::readOBJ(QByteArray& model, const QVariantHash& m
             // Now that each mesh has been created with its own unique material mappings, fill them with data (vertex data is duplicated, face data is not).
             foreach(OBJFace face, faceGroup) {
                 FBXMeshPart& meshPart = mesh.parts[materialMeshIdMap[face.materialName]];
+                FBXMeshPart& collisionMeshPart = collisionMesh.parts[i];
 
-                glm::vec3 v0 = checked_at(vertices, face.vertexIndices[0]);
-                glm::vec3 v1 = checked_at(vertices, face.vertexIndices[1]);
-                glm::vec3 v2 = checked_at(vertices, face.vertexIndices[2]);
+                fillVertexData(mesh, meshPart, face, scaleGuess);
+                fillColorData(mesh, meshPart, face, scaleGuess);
 
-                glm::vec3 vc0, vc1, vc2;
-                bool hasVertexColors = (vertexColors.size() > 0);
-                if (hasVertexColors) {
-                    // If there are any vertex colors, it's safe to assume all meshes had them exported.
-                    vc0 = checked_at(vertexColors, face.vertexIndices[0]);
-                    vc1 = checked_at(vertexColors, face.vertexIndices[1]);
-                    vc2 = checked_at(vertexColors, face.vertexIndices[2]);
-                }
-
-                // Scale the vertices if the OBJ file scale is specified as non-one.
-                if (scaleGuess != 1.0f) {
-                    v0 *= scaleGuess;
-                    v1 *= scaleGuess;
-                    v2 *= scaleGuess;
-                }
-
-                // Add the vertices.
-                meshPart.triangleIndices.append(mesh.vertices.count()); // not face.vertexIndices into vertices
-                mesh.vertices << v0;
-                meshPart.triangleIndices.append(mesh.vertices.count());
-                mesh.vertices << v1;
-                meshPart.triangleIndices.append(mesh.vertices.count());
-                mesh.vertices << v2;
-
-                if (hasVertexColors) {
-                    // Add vertex colors.
-                    mesh.colors << vc0;
-                    mesh.colors << vc1;
-                    mesh.colors << vc2;
-                }
-
-                glm::vec3 n0, n1, n2;
-                if (face.normalIndices.count()) {
-                    n0 = checked_at(normals, face.normalIndices[0]);
-                    n1 = checked_at(normals, face.normalIndices[1]);
-                    n2 = checked_at(normals, face.normalIndices[2]);
-                } else { 
-                    // generate normals from triangle plane if not provided
-                    n0 = n1 = n2 = glm::cross(v1 - v0, v2 - v0);
-                }
-
-                mesh.normals.append(n0);
-                mesh.normals.append(n1);
-                mesh.normals.append(n2);
-
-                if (face.textureUVIndices.count()) {
-                    mesh.texCoords <<
-                        checked_at(textureUVs, face.textureUVIndices[0]) <<
-                        checked_at(textureUVs, face.textureUVIndices[1]) <<
-                        checked_at(textureUVs, face.textureUVIndices[2]);
-                } else {
-                    glm::vec2 corner(0.0f, 1.0f);
-                    mesh.texCoords << corner << corner << corner;
-                }
+                fillVertexData(collisionMesh, collisionMeshPart, face, scaleGuess);
             }
         }
 
@@ -814,6 +774,7 @@ FBXGeometry::Pointer OBJReader::readOBJ(QByteArray& model, const QVariantHash& m
 
         // Build the single mesh.
         FBXReader::buildModelMesh(mesh, url.toString());
+        FBXReader::buildModelMesh(collisionMesh, url.toString());
 
         // fbxDebugDump(geometry);
     } catch(const std::exception& e) {
@@ -977,6 +938,69 @@ FBXGeometry::Pointer OBJReader::readOBJ(QByteArray& model, const QVariantHash& m
     }
 
     return geometryPtr;
+}
+
+void OBJReader::fillVertexData(FBXMesh& mesh, FBXMeshPart& meshPart, OBJFace& face, float scaleGuess) {
+    glm::vec3 v0 = checked_at(vertices, face.vertexIndices[0]);
+    glm::vec3 v1 = checked_at(vertices, face.vertexIndices[1]);
+    glm::vec3 v2 = checked_at(vertices, face.vertexIndices[2]);
+
+    // Scale the vertices if the OBJ file scale is specified as non-one.
+    if (scaleGuess != 1.0f) {
+        v0 *= scaleGuess;
+        v1 *= scaleGuess;
+        v2 *= scaleGuess;
+    }
+
+    // Add the vertices.
+    meshPart.triangleIndices.append(mesh.vertices.count()); // not face.vertexIndices into vertices
+    mesh.vertices << v0;
+    meshPart.triangleIndices.append(mesh.vertices.count());
+    mesh.vertices << v1;
+    meshPart.triangleIndices.append(mesh.vertices.count());
+    mesh.vertices << v2;
+
+    glm::vec3 n0, n1, n2;
+    if (face.normalIndices.count()) {
+        n0 = checked_at(normals, face.normalIndices[0]);
+        n1 = checked_at(normals, face.normalIndices[1]);
+        n2 = checked_at(normals, face.normalIndices[2]);
+    } else {
+        // generate normals from triangle plane if not provided
+        n0 = n1 = n2 = glm::cross(v1 - v0, v2 - v0);
+    }
+
+    mesh.normals.append(n0);
+    mesh.normals.append(n1);
+    mesh.normals.append(n2);
+}
+
+void OBJReader::fillColorData(FBXMesh& mesh, FBXMeshPart& meshPart, OBJFace& face, float scaleGuess) {
+    glm::vec3 vc0, vc1, vc2;
+    bool hasVertexColors = (vertexColors.size() > 0);
+    if (hasVertexColors) {
+        // If there are any vertex colors, it's safe to assume all meshes had them exported.
+        vc0 = checked_at(vertexColors, face.vertexIndices[0]);
+        vc1 = checked_at(vertexColors, face.vertexIndices[1]);
+        vc2 = checked_at(vertexColors, face.vertexIndices[2]);
+    }
+
+    if (hasVertexColors) {
+        // Add vertex colors.
+        mesh.colors << vc0;
+        mesh.colors << vc1;
+        mesh.colors << vc2;
+    }
+
+    if (face.textureUVIndices.count()) {
+        mesh.texCoords <<
+            checked_at(textureUVs, face.textureUVIndices[0]) <<
+            checked_at(textureUVs, face.textureUVIndices[1]) <<
+            checked_at(textureUVs, face.textureUVIndices[2]);
+    } else {
+        glm::vec2 corner(0.0f, 1.0f);
+        mesh.texCoords << corner << corner << corner;
+    }
 }
 
 void fbxDebugDump(const FBXGeometry& fbxgeo) {

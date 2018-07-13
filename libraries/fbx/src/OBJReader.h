@@ -93,6 +93,8 @@ private:
     QHash<QByteArray, bool> librariesSeen;
     bool parseOBJGroup(OBJTokenizer& tokenizer, const QVariantHash& mapping, FBXGeometry& geometry,
                        float& scaleGuess, bool combineParts);
+    void fillVertexData(FBXMesh& mesh, FBXMeshPart& meshPart, OBJFace& face, float scaleGuess);
+    void fillColorData(FBXMesh& mesh, FBXMeshPart& meshPart, OBJFace& face, float scaleGuess);
     void parseMaterialLibrary(QIODevice* device);
     void parseTextureLine(const QByteArray& textureLine, QByteArray& filename, OBJMaterialTextureOptions& textureOptions);
     bool isValidTexture(const QByteArray &filename); // true if the file exists. TODO?: check content-type header and that it is a supported format.
