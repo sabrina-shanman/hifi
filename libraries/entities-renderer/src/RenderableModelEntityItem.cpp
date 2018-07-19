@@ -543,9 +543,10 @@ void RenderableModelEntityItem::computeShapeInfo(ShapeInfo& shapeInfo) {
 
             // copy points
             uint32_t meshIndexOffset = (uint32_t)points.size();
+            const glm::mat4& localTransform = localTransforms[meshCount];
             const glm::vec3* vertexItr = vertices.cbegin();
             while (vertexItr != vertices.cend()) {
-                glm::vec3 point = *vertexItr;
+                glm::vec3 point = extractTranslation(localTransform * glm::translate(*vertexItr));
                 points.push_back(point);
                 extents.addPoint(point);
                 ++vertexItr;
