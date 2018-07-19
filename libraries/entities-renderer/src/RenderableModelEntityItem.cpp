@@ -526,7 +526,7 @@ void RenderableModelEntityItem::computeShapeInfo(ShapeInfo& shapeInfo) {
             if (!mesh.vertices.size()) {
                 continue;
             }
-            QVector<glm::vec3> vertices = mesh.vertices;
+            const QVector<glm::vec3>& vertices = mesh.vertices;
 
             ShapeInfo::PointList& points = pointCollection[pointListIndex];
 
