@@ -498,7 +498,7 @@ void RenderableModelEntityItem::computeShapeInfo(ShapeInfo& shapeInfo) {
             return;
         }
 
-        auto& meshes = model->getGeometry()->getMeshes();
+        auto& meshes = model->getFBXGeometry().meshes;
         int32_t numMeshes = (int32_t)(meshes.size());
 
         const int MAX_ALLOWED_MESH_COUNT = 1000;
@@ -523,32 +523,29 @@ void RenderableModelEntityItem::computeShapeInfo(ShapeInfo& shapeInfo) {
         int32_t meshCount = 0;
         int32_t pointListIndex = 0;
         for (auto& mesh : meshes) {
-            if (!mesh) {
+            if (!mesh.vertices.size()) {
                 continue;
             }
-            const gpu::BufferView& vertices = mesh->getVertexBuffer();
-            const gpu::BufferView& indices = mesh->getIndexBuffer();
-            const gpu::BufferView& parts = mesh->getPartBuffer();
+            QVector<glm::vec3> vertices = mesh.vertices;
 
             ShapeInfo::PointList& points = pointCollection[pointListIndex];
 
             // reserve room
-            int32_t sizeToReserve = (int32_t)(vertices.getNumElements());
+            int32_t sizeToReserve = (int32_t)(vertices.count());
             if (type == SHAPE_TYPE_SIMPLE_COMPOUND) {
                 // a list of points for each mesh
                 pointListIndex++;
             } else {
                 // only one list of points
-                sizeToReserve += (int32_t)((gpu::Size)points.size());
+                sizeToReserve += (int32_t)points.size();
             }
             points.reserve(sizeToReserve);
 
             // copy points
             uint32_t meshIndexOffset = (uint32_t)points.size();
-            const glm::mat4& localTransform = localTransforms[meshCount];
-            gpu::BufferView::Iterator<const glm::vec3> vertexItr = vertices.cbegin<const glm::vec3>();
-            while (vertexItr != vertices.cend<const glm::vec3>()) {
-                glm::vec3 point = extractTranslation(localTransform * glm::translate(*vertexItr));
+            const glm::vec3* vertexItr = vertices.cbegin();
+            while (vertexItr != vertices.cend()) {
+                glm::vec3 point = *vertexItr;
                 points.push_back(point);
                 extents.addPoint(point);
                 ++vertexItr;
@@ -556,108 +553,33 @@ void RenderableModelEntityItem::computeShapeInfo(ShapeInfo& shapeInfo) {
 
             if (type == SHAPE_TYPE_STATIC_MESH) {
                 // copy into triangleIndices
-                triangleIndices.reserve((int32_t)((gpu::Size)(triangleIndices.size()) + indices.getNumElements()));
-                gpu::BufferView::Iterator<const graphics::Mesh::Part> partItr = parts.cbegin<const graphics::Mesh::Part>();
-                while (partItr != parts.cend<const graphics::Mesh::Part>()) {
-                    auto numIndices = partItr->_numIndices;
-                    if (partItr->_topology == graphics::Mesh::TRIANGLES) {
-                        // TODO: assert rather than workaround after we start sanitizing FBXMesh higher up
-                        //assert(numIndices % TRIANGLE_STRIDE == 0);
-                        numIndices -= numIndices % TRIANGLE_STRIDE; // WORKAROUND lack of sanity checking in FBXReader
+                size_t triangleIndicesCount = 0;
+                for (const FBXMeshPart& meshPart : mesh.parts) {
+                    triangleIndicesCount += meshPart.triangleIndices.count();
+                }
+                triangleIndices.reserve(triangleIndicesCount);
 
-                        auto indexItr = indices.cbegin<const gpu::BufferView::Index>() + partItr->_startIndex;
-                        auto indexEnd = indexItr + numIndices;
-                        while (indexItr != indexEnd) {
-                            triangleIndices.push_back(*indexItr + meshIndexOffset);
-                            ++indexItr;
-                        }
-                    } else if (partItr->_topology == graphics::Mesh::TRIANGLE_STRIP) {
-                        // TODO: resurrect assert after we start sanitizing FBXMesh higher up
-                        //assert(numIndices > 2);
-
-                        uint32_t approxNumIndices = TRIANGLE_STRIDE * numIndices;
-                        if (approxNumIndices > (uint32_t)(triangleIndices.capacity() - triangleIndices.size())) {
-                            // we underestimated the final size of triangleIndices so we pre-emptively expand it
-                            triangleIndices.reserve(triangleIndices.size() + approxNumIndices);
-                        }
-
-                        auto indexItr = indices.cbegin<const gpu::BufferView::Index>() + partItr->_startIndex;
-                        auto indexEnd = indexItr + (numIndices - 2);
-
-                        // first triangle uses the first three indices
-                        triangleIndices.push_back(*(indexItr++) + meshIndexOffset);
-                        triangleIndices.push_back(*(indexItr++) + meshIndexOffset);
-                        triangleIndices.push_back(*(indexItr++) + meshIndexOffset);
-
-                        // the rest use previous and next index
-                        uint32_t triangleCount = 1;
-                        while (indexItr != indexEnd) {
-                            if ((*indexItr) != graphics::Mesh::PRIMITIVE_RESTART_INDEX) {
-                                if (triangleCount % 2 == 0) {
-                                    // even triangles use first two indices in order
-                                    triangleIndices.push_back(*(indexItr - 2) + meshIndexOffset);
-                                    triangleIndices.push_back(*(indexItr - 1) + meshIndexOffset);
-                                } else {
-                                    // odd triangles swap order of first two indices
-                                    triangleIndices.push_back(*(indexItr - 1) + meshIndexOffset);
-                                    triangleIndices.push_back(*(indexItr - 2) + meshIndexOffset);
-                                }
-                                triangleIndices.push_back(*indexItr + meshIndexOffset);
-                                ++triangleCount;
-                            }
-                            ++indexItr;
-                        }
+                for (const FBXMeshPart& meshPart : mesh.parts) {
+                    const int* indexItr = meshPart.triangleIndices.cbegin();
+                    while (indexItr != meshPart.triangleIndices.cend()) {
+                        triangleIndices.push_back(*indexItr);
+                        ++indexItr;
                     }
-                    ++partItr;
                 }
             } else if (type == SHAPE_TYPE_SIMPLE_COMPOUND) {
                 // for each mesh copy unique part indices, separated by special bogus (flag) index values
-                gpu::BufferView::Iterator<const graphics::Mesh::Part> partItr = parts.cbegin<const graphics::Mesh::Part>();
-                while (partItr != parts.cend<const graphics::Mesh::Part>()) {
+                for (const FBXMeshPart& meshPart : mesh.parts) {
                     // collect unique list of indices for this part
                     std::set<int32_t> uniqueIndices;
-                    auto numIndices = partItr->_numIndices;
-                    if (partItr->_topology == graphics::Mesh::TRIANGLES) {
-                        // TODO: assert rather than workaround after we start sanitizing FBXMesh higher up
-                        //assert(numIndices% TRIANGLE_STRIDE == 0);
-                        numIndices -= numIndices % TRIANGLE_STRIDE; // WORKAROUND lack of sanity checking in FBXReader
+                    auto numIndices = meshPart.triangleIndices.count();
+                    // TODO: assert rather than workaround after we start sanitizing FBXMesh higher up
+                    //assert(numIndices% TRIANGLE_STRIDE == 0);
+                    numIndices -= numIndices % TRIANGLE_STRIDE; // WORKAROUND lack of sanity checking in FBXReader
 
-                        auto indexItr = indices.cbegin<const gpu::BufferView::Index>() + partItr->_startIndex;
-                        auto indexEnd = indexItr + numIndices;
-                        while (indexItr != indexEnd) {
-                            uniqueIndices.insert(*indexItr);
-                            ++indexItr;
-                        }
-                    } else if (partItr->_topology == graphics::Mesh::TRIANGLE_STRIP) {
-                        // TODO: resurrect assert after we start sanitizing FBXMesh higher up
-                        //assert(numIndices > TRIANGLE_STRIDE - 1);
-
-                        auto indexItr = indices.cbegin<const gpu::BufferView::Index>() + partItr->_startIndex;
-                        auto indexEnd = indexItr + (numIndices - 2);
-
-                        // first triangle uses the first three indices
-                        uniqueIndices.insert(*(indexItr++));
-                        uniqueIndices.insert(*(indexItr++));
-                        uniqueIndices.insert(*(indexItr++));
-
-                        // the rest use previous and next index
-                        uint32_t triangleCount = 1;
-                        while (indexItr != indexEnd) {
-                            if ((*indexItr) != graphics::Mesh::PRIMITIVE_RESTART_INDEX) {
-                                if (triangleCount % 2 == 0) {
-                                    // EVEN triangles use first two indices in order
-                                    uniqueIndices.insert(*(indexItr - 2));
-                                    uniqueIndices.insert(*(indexItr - 1));
-                                } else {
-                                    // ODD triangles swap order of first two indices
-                                    uniqueIndices.insert(*(indexItr - 1));
-                                    uniqueIndices.insert(*(indexItr - 2));
-                                }
-                                uniqueIndices.insert(*indexItr);
-                                ++triangleCount;
-                            }
-                            ++indexItr;
-                        }
+                    auto indexItr = meshPart.triangleIndices.cbegin();
+                    while (indexItr != meshPart.triangleIndices.cend()) {
+                        uniqueIndices.insert(*indexItr);
+                        ++indexItr;
                     }
 
                     // store uniqueIndices in triangleIndices
@@ -667,8 +589,6 @@ void RenderableModelEntityItem::computeShapeInfo(ShapeInfo& shapeInfo) {
                     }
                     // flag end of part
                     triangleIndices.push_back(END_OF_MESH_PART);
-
-                    ++partItr;
                 }
                 // flag end of mesh
                 triangleIndices.push_back(END_OF_MESH);
