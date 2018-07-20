@@ -557,7 +557,7 @@ void RenderableModelEntityItem::computeShapeInfo(ShapeInfo& shapeInfo) {
                 for (const FBXMeshPart& meshPart : mesh.parts) {
                     triangleIndicesCount += meshPart.triangleIndices.count();
                 }
-                triangleIndices.reserve(triangleIndicesCount);
+                triangleIndices.reserve((int)triangleIndicesCount);
 
                 for (const FBXMeshPart& meshPart : mesh.parts) {
                     const int* indexItr = meshPart.triangleIndices.cbegin();
