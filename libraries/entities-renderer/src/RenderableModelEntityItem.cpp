@@ -370,11 +370,13 @@ void RenderableModelEntityItem::computeShapeInfo(ShapeInfo& shapeInfo) {
     // should never fall in here when collision model not fully loaded
     // TODO: assert that all geometries exist and are loaded
     //assert(_model && _model->isLoaded() && _compoundShapeResource && _compoundShapeResource->isLoaded());
-    ShapeType type = getShapeType();
-    auto model = getModel();
     glm::vec3 dimensions = getScaledDimensions();
+    // Need to set the shapeType of ShapeInfo so computeShapeInfo can infer if this is a model or not
+    shapeInfo.setParams(getShapeType(), dimensions / 2.0f);
+    auto model = getModel();
     glm::vec3 registrationPoint = ENTITY_ITEM_DEFAULT_REGISTRATION_POINT - getRegistrationPoint();
 
+    ShapeType type = shapeInfo.getType();
     if (type == SHAPE_TYPE_COMPOUND) {
         updateModelBounds();
 
@@ -384,6 +386,7 @@ void RenderableModelEntityItem::computeShapeInfo(ShapeInfo& shapeInfo) {
     }
     else if (type >= SHAPE_TYPE_SIMPLE_HULL && type <= SHAPE_TYPE_STATIC_MESH) {
         updateModelBounds();
+        model->updateGeometry();
 
         const FBXGeometry& geometry = model->getFBXGeometry();
 
@@ -401,6 +404,17 @@ void RenderableModelEntityItem::computeShapeInfo(ShapeInfo& shapeInfo) {
             }
         }
 
+        // TODO: Remove after testing
+        std::cout << "type >= SHAPE_TYPE_SIMPLE_HULL && type <= SHAPE_TYPE_STATIC_MESH" << std::endl;
+        std::cout << " dimensions: " << dimensions << std::endl;
+        std::cout << " unscaled model extents: " << geometry.getUnscaledMeshExtents().size() << std::endl;
+        std::cout << " registrationPoint: " << registrationPoint << std::endl;
+        std::cout << " model->getOffset(): " << model->getOffset() << std::endl;
+        std::cout << " jointTransforms:" << std::endl;
+
+        for (auto transform : jointTransforms) {
+            std::cout << "  " << transform << std::endl;
+        }
         FBXGeometry::computeShapeInfo(shapeInfo, dimensions, geometry, getCompoundShapeURL(), registrationPoint, model->getOffset(), jointTransforms);
     }
     else {

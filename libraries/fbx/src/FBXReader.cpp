@@ -134,11 +134,13 @@ QString FBXGeometry::getModelNameOfMesh(int meshIndex) const {
 
 // static
 void FBXGeometry::computeShapeInfo(ShapeInfo& shapeInfo, const glm::vec3& dimensions, const FBXGeometry& geometry, const QUrl& modelURL, const glm::vec3& registrationPoint, const glm::vec3& modelOffset, const std::vector<glm::mat4>& jointTransforms) {
+    std::cout << "FBXGeometry::computeShapeInfo" << std::endl; // TODO: Remove after testing
     const uint32_t TRIANGLE_STRIDE = 3;
     const uint32_t QUAD_STRIDE = 4;
 
     ShapeType type = shapeInfo.getType();
     if (type == SHAPE_TYPE_COMPOUND) {
+        std::cout << "FBXGeometry::computeShapeInfo (type == SHAPE_TYPE_COMPOUND)" << std::endl; // TODO: Remove after testing
         ShapeInfo::PointCollection& pointCollection = shapeInfo.getPointCollection();
         pointCollection.clear();
         uint32_t i = 0;
@@ -224,6 +226,7 @@ void FBXGeometry::computeShapeInfo(ShapeInfo& shapeInfo, const glm::vec3& dimens
         }
         shapeInfo.setParams(type, dimensions, modelURL.toString());
     } else if (type >= SHAPE_TYPE_SIMPLE_HULL && type <= SHAPE_TYPE_STATIC_MESH) {
+        std::cout << "FBXGeometry::computeShapeInfo (type >= SHAPE_TYPE_SIMPLE_HULL && type <= SHAPE_TYPE_STATIC_MESH)" << std::endl; // TODO: Remove after testing
         // compute meshPart local transforms
         QVector<glm::mat4> localTransforms;
         int numFbxMeshes = geometry.meshes.size();
@@ -245,6 +248,10 @@ void FBXGeometry::computeShapeInfo(ShapeInfo& shapeInfo, const glm::vec3& dimens
                 localTransforms.push_back(invRegistraionOffset);
             }
             totalNumVertices += mesh.vertices.size();
+        }
+        std::cout << "CSi: localTransforms in: " << std::endl;// TODO: Remove after testing
+        for (auto localTransform : localTransforms) {// TODO: Remove after testing
+            std::cout << " " << localTransform << std::endl;
         }
         const int32_t MAX_VERTICES_PER_STATIC_MESH = 1e6;
         if (totalNumVertices > MAX_VERTICES_PER_STATIC_MESH) {
@@ -270,6 +277,7 @@ void FBXGeometry::computeShapeInfo(ShapeInfo& shapeInfo, const glm::vec3& dimens
         } else {
             pointCollection.resize(1);
         }
+        std::cout << "CSi: numMeshes: " << numMeshes << std::endl; // TODO: Remove after testing
 
         ShapeInfo::TriangleIndices& triangleIndices = shapeInfo.getTriangleIndices();
         triangleIndices.clear();
@@ -306,6 +314,7 @@ void FBXGeometry::computeShapeInfo(ShapeInfo& shapeInfo, const glm::vec3& dimens
                 extents.addPoint(point);
                 ++vertexItr;
             }
+            std::cout << "CSi: some sort of mesh: points count: " << points.size() << std::endl; // TODO: Remove after testing
 
             if (type == SHAPE_TYPE_STATIC_MESH) {
                 // copy into triangleIndices
@@ -322,6 +331,7 @@ void FBXGeometry::computeShapeInfo(ShapeInfo& shapeInfo, const glm::vec3& dimens
                         ++indexItr;
                     }
                 }
+                std::cout << "CSi: static mesh: triangleIndices count: " << triangleIndices.size() << std::endl; // TODO: Remove after testing
             } else if (type == SHAPE_TYPE_SIMPLE_COMPOUND) {
                 // for each mesh copy unique part indices, separated by special bogus (flag) index values
                 for (const FBXMeshPart& meshPart : mesh.parts) {
@@ -348,6 +358,7 @@ void FBXGeometry::computeShapeInfo(ShapeInfo& shapeInfo, const glm::vec3& dimens
                 }
                 // flag end of mesh
                 triangleIndices.push_back(END_OF_MESH);
+                std::cout << "CSi: simple compound: triangleIndices count: " << triangleIndices.size() << std::endl; // TODO: Remove after testing
             }
             ++meshCount;
         }
@@ -368,6 +379,7 @@ void FBXGeometry::computeShapeInfo(ShapeInfo& shapeInfo, const glm::vec3& dimens
 
         shapeInfo.setParams(type, 0.5f * dimensions, modelURL.toString());
     } else {
+        std::cout << "FBXGeometry::computeShapeInfo (not a model)" << std::endl; // TODO: Remove after testing
         shapeInfo.setParams(type, 0.5f * dimensions);
     }
 }
