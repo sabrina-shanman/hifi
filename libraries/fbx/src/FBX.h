@@ -24,6 +24,7 @@
 
 #include <Extents.h>
 #include <Transform.h>
+#include <ShapeInfo.h>
 
 #include <graphics/Geometry.h>
 #include <graphics/Material.h>
@@ -352,6 +353,10 @@ public:
     QString getModelNameOfMesh(int meshIndex) const;
 
     QList<QString> blendshapeChannelNames;
+
+    // Populates shapeInfo with dimensions and, depending on shapeInfo's ShapeType, collision model points.
+    // May set shapeInfo to a box if the geometry has too many points.
+    static void computeShapeInfo(ShapeInfo& shapeInfo, const glm::vec3& dimensions, const FBXGeometry& geometry = FBXGeometry(), const QUrl& modelURL = QUrl(), const glm::vec3& registrationPoint = glm::vec3(), const glm::vec3& modelOffset = glm::vec3(), const std::vector<glm::mat4>& jointTransforms = std::vector<glm::mat4>());
 };
 
 Q_DECLARE_METATYPE(FBXGeometry)
