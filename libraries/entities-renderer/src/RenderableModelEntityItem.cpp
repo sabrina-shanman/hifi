@@ -470,7 +470,6 @@ void RenderableModelEntityItem::computeShapeInfo(ShapeInfo& shapeInfo) {
         // assert(_model && _model->isLoaded());
 
         updateModelBounds();
-        model->updateGeometry();
 
         // compute meshPart local transforms
         QVector<glm::mat4> localTransforms;
