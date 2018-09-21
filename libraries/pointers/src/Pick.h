@@ -108,10 +108,18 @@ public:
 class PickResult {
 public:
     PickResult() {}
-    PickResult(const QVariantMap& pickVariant) : pickVariant(pickVariant) {}
+    PickResult(const QVariantMap& pickVariant) : _pickVariant(pickVariant) {}
+    PickResult(const PickResult& pickResult) : _pickVariant(pickResult.getPickVariant()) {}
+    PickResult& operator=(const PickResult& pickResult) {
+        if (this != &pickResult) {
+            QVariantMap pickVariant = pickResult.getPickVariant();
+            setPickVariant(pickVariant);
+        }
+        return *this;
+    }
 
     virtual QVariantMap toVariantMap() const {
-        return pickVariant;
+        return getPickVariant();
     }
 
     virtual bool doesIntersect() const = 0;
@@ -125,7 +133,23 @@ public:
     // can also filter out results with distance >= maxDistance
     virtual bool checkOrFilterAgainstMaxDistance(float maxDistance) = 0;
 
-    QVariantMap pickVariant;
+    QVariantMap getPickVariant() const {
+        QVariantMap pickVariant;
+        {
+            std::lock_guard<std::mutex> lock(_pickVariantLock);
+            pickVariant = _pickVariant;
+        }
+        return pickVariant;
+    }
+
+    void setPickVariant(const QVariantMap& pickVariant) {
+        std::lock_guard<std::mutex> lock(_pickVariantLock);
+        _pickVariant = pickVariant;
+    }
+
+private:
+    QVariantMap _pickVariant;
+    mutable std::mutex _pickVariantLock;
 };
 
 using PickResultPointer = std::shared_ptr<PickResult>;

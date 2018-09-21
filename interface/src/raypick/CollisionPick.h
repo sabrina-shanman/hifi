@@ -27,7 +27,7 @@ public:
     {
     }
 
-    CollisionPickResult(const CollisionPickResult& collisionPickResult) : PickResult(collisionPickResult.pickVariant) {
+    CollisionPickResult(const CollisionPickResult& collisionPickResult) : PickResult(collisionPickResult) {
         avatarIntersections = collisionPickResult.avatarIntersections;
         entityIntersections = collisionPickResult.entityIntersections;
         intersects = collisionPickResult.intersects;

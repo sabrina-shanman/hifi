@@ -20,10 +20,10 @@ public:
     ParabolaPickResult(const QVariantMap& pickVariant) : PickResult(pickVariant) {}
     ParabolaPickResult(const IntersectionType type, const QUuid& objectID, float distance, float parabolicDistance, const glm::vec3& intersection, const PickParabola& parabola,
                        const glm::vec3& surfaceNormal = glm::vec3(NAN), const QVariantMap& extraInfo = QVariantMap()) :
-        PickResult(parabola.toVariantMap()), extraInfo(extraInfo), objectID(objectID), intersection(intersection), surfaceNormal(surfaceNormal), type(type), distance(distance), parabolicDistance(parabolicDistance), intersects(type != NONE) {
+        PickResult(parabola.toVariantMap()), objectID(objectID), intersection(intersection), surfaceNormal(surfaceNormal), type(type), distance(distance), parabolicDistance(parabolicDistance), intersects(type != NONE), _extraInfo(extraInfo) {
     }
 
-    ParabolaPickResult(const ParabolaPickResult& parabolaPickResult) : PickResult(parabolaPickResult.pickVariant) {
+    ParabolaPickResult(const ParabolaPickResult& parabolaPickResult) : PickResult(parabolaPickResult) {
         type = parabolaPickResult.type;
         intersects = parabolaPickResult.intersects;
         objectID = parabolaPickResult.objectID;
@@ -31,10 +31,25 @@ public:
         parabolicDistance = parabolaPickResult.parabolicDistance;
         intersection = parabolaPickResult.intersection;
         surfaceNormal = parabolaPickResult.surfaceNormal;
-        extraInfo = parabolaPickResult.extraInfo;
+        _extraInfo = parabolaPickResult.getExtraInfo();
     }
 
-    QVariantMap extraInfo;
+    ParabolaPickResult& operator=(const ParabolaPickResult& parabolaPickResult) {
+        PickResult::operator=(parabolaPickResult);
+        if (this != &parabolaPickResult) {
+            type = parabolaPickResult.type;
+            intersects = parabolaPickResult.intersects;
+            objectID = parabolaPickResult.objectID;
+            distance = parabolaPickResult.distance;
+            parabolicDistance = parabolaPickResult.parabolicDistance;
+            intersection = parabolaPickResult.intersection;
+            surfaceNormal = parabolaPickResult.surfaceNormal;
+            QVariantMap extraInfo = parabolaPickResult.getExtraInfo();
+            setExtraInfo(extraInfo);
+        }
+        return *this;
+    }
+
     QUuid objectID;
     glm::vec3 intersection { NAN };
     glm::vec3 surfaceNormal { NAN };
@@ -53,7 +68,7 @@ public:
         toReturn["intersection"] = vec3toVariant(intersection);
         toReturn["surfaceNormal"] = vec3toVariant(surfaceNormal);
         toReturn["parabola"] = PickResult::toVariantMap();
-        toReturn["extraInfo"] = extraInfo;
+        toReturn["extraInfo"] = getExtraInfo();
         return toReturn;
     }
 
@@ -69,6 +84,23 @@ public:
         }
     }
 
+    QVariantMap getExtraInfo() const {
+        QVariantMap extraInfo;
+        {
+            std::lock_guard<std::mutex> lock(_extraInfoLock);
+            extraInfo = _extraInfo;
+        }
+        return extraInfo;
+    }
+
+    void setExtraInfo(const QVariantMap& extraInfo) {
+        std::lock_guard<std::mutex> lock(_extraInfoLock);
+        _extraInfo = extraInfo;
+    }
+
+private:
+    QVariantMap _extraInfo;
+    mutable std::mutex _extraInfoLock;
 };
 
 class ParabolaPick : public Pick<PickParabola> {

@@ -58,7 +58,7 @@ void StylusPointer::updateVisuals(const PickResultPointer& pickResult) {
     auto stylusPickResult = std::static_pointer_cast<const StylusPickResult>(pickResult);
 
     if (_enabled && !qApp->getPreferAvatarFingerOverStylus() && _renderState != DISABLED && stylusPickResult) {
-        StylusTip tip(stylusPickResult->pickVariant);
+        StylusTip tip(stylusPickResult->getPickVariant());
         if (tip.side != bilateral::Side::Invalid) {
             show(tip);
             return;
@@ -118,7 +118,7 @@ bool StylusPointer::shouldTrigger(const PickResultPointer& pickResult) {
         float distance = stylusPickResult->distance;
 
         // If we're triggering on an object, recalculate the distance instead of using the pickResult
-        glm::vec3 origin = vec3FromVariant(stylusPickResult->pickVariant["position"]);
+        glm::vec3 origin = vec3FromVariant(stylusPickResult->getPickVariant()["position"]);
         glm::vec3 direction = _state.triggering ? -_state.surfaceNormal : -stylusPickResult->surfaceNormal;
         if ((_state.triggering || _state.wasTriggering) && stylusPickResult->objectID != _state.triggeredObject.objectID) {
             distance = glm::dot(findIntersection(_state.triggeredObject, origin, direction) - origin, direction);
@@ -169,7 +169,7 @@ PointerEvent StylusPointer::buildPointerEvent(const PickedObject& target, const 
     if (stylusPickResult) {
         intersection = stylusPickResult->intersection;
         surfaceNormal = hover ? stylusPickResult->surfaceNormal : _state.surfaceNormal;
-        const QVariantMap& stylusTip = stylusPickResult->pickVariant;
+        const QVariantMap& stylusTip = stylusPickResult->getPickVariant();
         origin = vec3FromVariant(stylusTip["position"]);
         direction = -surfaceNormal;
         pos2D = findPos2D(target, origin);

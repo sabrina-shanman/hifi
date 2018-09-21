@@ -22,7 +22,7 @@ public:
         PickResult(stylusTip.toVariantMap()), type(type), intersects(type != NONE), objectID(objectID), distance(distance), intersection(intersection), surfaceNormal(surfaceNormal) {
     }
 
-    StylusPickResult(const StylusPickResult& stylusPickResult) : PickResult(stylusPickResult.pickVariant) {
+    StylusPickResult(const StylusPickResult& stylusPickResult) : PickResult(stylusPickResult) {
         type = stylusPickResult.type;
         intersects = stylusPickResult.intersects;
         objectID = stylusPickResult.objectID;

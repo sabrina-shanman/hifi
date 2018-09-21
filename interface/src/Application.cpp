@@ -2280,7 +2280,7 @@ Application::Application(int& argc, char** argv, QElapsedTimer& startupTimer, bo
                 entityResult.distance = pickResult->distance;
                 entityResult.surfaceNormal = pickResult->surfaceNormal;
                 entityResult.entityID = pickResult->objectID;
-                entityResult.extraInfo = pickResult->extraInfo;
+                entityResult.extraInfo = pickResult->getExtraInfo();
             }
         }
         return entityResult;

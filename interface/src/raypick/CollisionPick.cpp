@@ -78,7 +78,7 @@ QVariantMap CollisionPickResult::toVariantMap() const {
     }
 
     variantMap["intersectingObjects"] = qIntersectingObjects;
-    variantMap["collisionRegion"] = pickVariant;
+    variantMap["collisionRegion"] = PickResult::toVariantMap();
 
     return variantMap;
 }

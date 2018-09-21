@@ -68,7 +68,7 @@ QVariantMap LaserPointer::toVariantMap() const {
 
 glm::vec3 LaserPointer::getPickOrigin(const PickResultPointer& pickResult) const {
     auto rayPickResult = std::static_pointer_cast<RayPickResult>(pickResult);
-    return (rayPickResult ? vec3FromVariant(rayPickResult->pickVariant["origin"]) : glm::vec3(0.0f));
+    return (rayPickResult ? vec3FromVariant(rayPickResult->getPickVariant()["origin"]) : glm::vec3(0.0f));
 }
 
 glm::vec3 LaserPointer::getPickEnd(const PickResultPointer& pickResult, float distance) const {
@@ -77,7 +77,7 @@ glm::vec3 LaserPointer::getPickEnd(const PickResultPointer& pickResult, float di
         return glm::vec3(0.0f);
     }
     if (distance > 0.0f) {
-        PickRay pick = PickRay(rayPickResult->pickVariant);
+        PickRay pick = PickRay(rayPickResult->getPickVariant());
         return pick.origin + distance * pick.direction;
     } else {
         return rayPickResult->intersection;
@@ -108,7 +108,9 @@ void LaserPointer::setVisualPickResultInternal(PickResultPointer pickResult, Int
         rayPickResult->intersection = intersection;
         rayPickResult->distance = distance;
         rayPickResult->surfaceNormal = surfaceNormal;
-        rayPickResult->pickVariant["direction"] = vec3toVariant(-surfaceNormal);
+        QVariantMap adjustedPickVariant = rayPickResult->getPickVariant();
+        adjustedPickVariant["direction"] = vec3toVariant(-surfaceNormal);
+        rayPickResult->setPickVariant(adjustedPickVariant);
     }
 }
 
@@ -194,7 +196,7 @@ PointerEvent LaserPointer::buildPointerEvent(const PickedObject& target, const P
     if (rayPickResult) {
         intersection = rayPickResult->intersection;
         surfaceNormal = rayPickResult->surfaceNormal;
-        const QVariantMap& searchRay = rayPickResult->pickVariant;
+        const QVariantMap& searchRay = rayPickResult->getPickVariant();
         direction = vec3FromVariant(searchRay["direction"]);
         origin = vec3FromVariant(searchRay["origin"]);
         pickedID = rayPickResult->objectID;

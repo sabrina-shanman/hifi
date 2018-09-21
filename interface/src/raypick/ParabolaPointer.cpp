@@ -91,7 +91,7 @@ QVariantMap ParabolaPointer::toVariantMap() const {
 
 glm::vec3 ParabolaPointer::getPickOrigin(const PickResultPointer& pickResult) const {
     auto parabolaPickResult = std::static_pointer_cast<ParabolaPickResult>(pickResult);
-    return (parabolaPickResult ? vec3FromVariant(parabolaPickResult->pickVariant["origin"]) : glm::vec3(0.0f));
+    return (parabolaPickResult ? vec3FromVariant(parabolaPickResult->getPickVariant()["origin"]) : glm::vec3(0.0f));
 }
 
 glm::vec3 ParabolaPointer::getPickEnd(const PickResultPointer& pickResult, float distance) const {
@@ -100,7 +100,7 @@ glm::vec3 ParabolaPointer::getPickEnd(const PickResultPointer& pickResult, float
         return glm::vec3(0.0f);
     }
     if (distance > 0.0f) {
-        PickParabola pick = PickParabola(parabolaPickResult->pickVariant);
+        PickParabola pick = PickParabola(parabolaPickResult->getPickVariant());
         return pick.origin + pick.velocity * distance + 0.5f * pick.acceleration * distance * distance;
     } else {
         return parabolaPickResult->intersection;
@@ -131,9 +131,11 @@ void ParabolaPointer::setVisualPickResultInternal(PickResultPointer pickResult, 
         parabolaPickResult->intersection = intersection;
         parabolaPickResult->distance = distance;
         parabolaPickResult->surfaceNormal = surfaceNormal;
-        PickParabola parabola = PickParabola(parabolaPickResult->pickVariant);
-        parabolaPickResult->pickVariant["velocity"] = vec3toVariant((intersection - parabola.origin -
+        QVariantMap parabolaPickVariant = parabolaPickResult->getPickVariant();
+        PickParabola parabola = PickParabola(parabolaPickVariant);
+        parabolaPickVariant["velocity"] = vec3toVariant((intersection - parabola.origin -
             0.5f * parabola.acceleration * parabolaPickResult->parabolicDistance * parabolaPickResult->parabolicDistance) / parabolaPickResult->parabolicDistance);
+        parabolaPickResult->setPickVariant(parabolaPickVariant);
     }
 }
 
@@ -198,7 +200,7 @@ void ParabolaPointer::RenderState::update(const glm::vec3& origin, const glm::ve
         render::Transaction transaction;
         auto scene = qApp->getMain3DScene();
 
-        PickParabola parabola = PickParabola(parabolaPickResult->pickVariant);
+        PickParabola parabola = PickParabola(parabolaPickResult->getPickVariant());
         glm::vec3 velocity = parabola.velocity;
         glm::vec3 acceleration = parabola.acceleration;
         float parabolicDistance = distance > 0.0f ? distance : parabolaPickResult->parabolicDistance;
@@ -271,7 +273,7 @@ PointerEvent ParabolaPointer::buildPointerEvent(const PickedObject& target, cons
     if (parabolaPickResult) {
         intersection = parabolaPickResult->intersection;
         surfaceNormal = parabolaPickResult->surfaceNormal;
-        const QVariantMap& parabola = parabolaPickResult->pickVariant;
+        const QVariantMap& parabola = parabolaPickResult->getPickVariant();
         origin = vec3FromVariant(parabola["origin"]);
         velocity = vec3FromVariant(parabola["velocity"]);
         acceleration = vec3FromVariant(parabola["acceleration"]);
