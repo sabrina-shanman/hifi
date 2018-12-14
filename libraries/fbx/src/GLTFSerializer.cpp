@@ -759,6 +759,10 @@ bool GLTFSerializer::buildGeometry(HFMModel& hfmModel, const QUrl& url) {
 
         if (node.defined["mesh"]) {
             qCDebug(modelformat) << "node_transforms" << node.transforms;
+            if (node.mesh >= _file.meshes.size() || node.mesh < 0) {
+                qWarning(modelformat) << "GLTF mesh index out of bounds for node. Node name:" << node.name;
+                continue;
+            }
             foreach(auto &primitive, _file.meshes[node.mesh].primitives) {
                 hfmModel.meshes.append(HFMMesh());
                 HFMMesh& mesh = hfmModel.meshes[hfmModel.meshes.size() - 1];
@@ -774,8 +778,20 @@ bool GLTFSerializer::buildGeometry(HFMModel& hfmModel, const QUrl& url) {
 
                 int indicesAccessorIdx = primitive.indices;
 
+                if (indicesAccessorIdx >= _file.accessors.size() || indicesAccessorIdx < 0) {
+                    qWarning(modelformat) << "GLTF accessor index out of bounds for mesh indices. Mesh index:" << node.mesh;
+                    continue;
+                }
                 GLTFAccessor& indicesAccessor = _file.accessors[indicesAccessorIdx];
+                if (indicesAccessor.bufferView >= _file.bufferviews.size() || indicesAccessor.bufferView < 0) {
+                    qWarning(modelformat) << "GLTF buffer view index out of bounds for mesh indices. Accessor index:" << indicesAccessorIdx;
+                    continue;
+                }
                 GLTFBufferView& indicesBufferview = _file.bufferviews[indicesAccessor.bufferView];
+                if (indicesBufferview.buffer >= _file.buffers.size() || indicesBufferview.buffer < 0) {
+                    qWarning(modelformat) << "GLTF buffer index out of bounds for mesh indices. Buffer view index:" << indicesAccessor.bufferView;
+                    continue;
+                }
                 GLTFBuffer& indicesBuffer = _file.buffers[indicesBufferview.buffer];
 
                 int indicesAccBoffset = indicesAccessor.defined["byteOffset"] ? indicesAccessor.byteOffset : 0;
@@ -801,8 +817,20 @@ bool GLTFSerializer::buildGeometry(HFMModel& hfmModel, const QUrl& url) {
                 foreach(auto &key, keys) {
                     int accessorIdx = primitive.attributes.values[key];
 
+                    if (accessorIdx >= _file.accessors.size() || accessorIdx < 0) {
+                        qWarning(modelformat) << "GLTF accessor index out of bounds for mesh primitive data. Mesh index:" << node.mesh;
+                        continue;
+                    }
                     GLTFAccessor& accessor = _file.accessors[accessorIdx];
+                    if (accessor.bufferView >= _file.bufferviews.size() || accessor.bufferView < 0) {
+                        qWarning(modelformat) << "GLTF buffer view index out of bounds for mesh primitive data. Accessor index:" << accessorIdx;
+                        continue;
+                    }
                     GLTFBufferView& bufferview = _file.bufferviews[accessor.bufferView];
+                    if (bufferview.buffer >= _file.buffers.size() || bufferview.buffer < 0) {
+                        qWarning(modelformat) << "GLTF buffer index out of bounds for mesh primitive data. Buffer view index:" << accessor.bufferView;
+                        continue;
+                    }
                     GLTFBuffer& buffer = _file.buffers[bufferview.buffer];
 
                     int accBoffset = accessor.defined["byteOffset"] ? accessor.byteOffset : 0;
@@ -869,7 +897,7 @@ bool GLTFSerializer::buildGeometry(HFMModel& hfmModel, const QUrl& url) {
 
                 }
 
-                if (primitive.defined["material"]) {
+                if (primitive.defined["material"] && primitive.material < materialIDs.size() && primitive.material >= 0) {
                     part.materialID = materialIDs[primitive.material];
                 }
                 mesh.parts.push_back(part);
