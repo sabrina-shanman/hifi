@@ -29,6 +29,7 @@
 #include <qfileinfo.h>
 
 #include <shared/NsightHelpers.h>
+#include <shared/URLUtils.h>
 #include <NetworkAccessManager.h>
 #include <ResourceManager.h>
 #include <PathUtils.h>
@@ -968,6 +969,11 @@ HFMModel::Pointer GLTFSerializer::read(const QByteArray& data, const QVariantHas
 }
 
 bool GLTFSerializer::readBinary(const QString& url, QByteArray& outdata) {
+    outdata = getDataFromURI(url.toStdString());
+    if (outdata.size() != 0) {
+        return true;
+    }
+
     QUrl binaryUrl = _url.resolved(url);
 
     bool success;
