@@ -835,9 +835,11 @@ HFMModel* FBXSerializer::extractHFMModel(const QVariantHash& mapping, const QStr
                         } else if (subobject.name == "ModelUVTranslation" && subobject.properties.length() >= MODEL_UV_TRANSLATION_MIN_SIZE) {
                             tex.assign(tex.UVTranslation, glm::vec2(subobject.properties.at(0).value<double>(),
                                                                     subobject.properties.at(1).value<double>()));
+                            std::cout << "ModelUVTranslation: " << subobject.properties.at(0).value<double>() << ", " << subobject.properties.at(1).value<double>() << std::endl; // TODO: Remove after testing
                         } else if (subobject.name == "ModelUVScaling" && subobject.properties.length() >= MODEL_UV_SCALING_MIN_SIZE) {
                             tex.assign(tex.UVScaling, glm::vec2(subobject.properties.at(0).value<double>(),
                                                                 subobject.properties.at(1).value<double>()));
+                            std::cout << "ModelUVScaling: " << subobject.properties.at(0).value<double>() << ", " << subobject.properties.at(1).value<double>() << std::endl; // TODO: Remove after testing
                             if (tex.UVScaling.x == 0.0f) {
                                 tex.UVScaling.x = 1.0f;
                             }
@@ -1838,6 +1840,68 @@ HFMModel::Pointer FBXSerializer::read(const QByteArray& data, const QVariantHash
     buffer.open(QIODevice::ReadOnly);
 
     _rootNode = parseFBX(&buffer);
+
+    // TODO: Remove after testing
+    if (url.toString().toStdString().find("Cube") != std::string::npos) {
+        std::cout << "Printing FBX file: " << std::endl;
+        std::cout << std::endl;
+        static struct Count {
+            Count(int value) : count(value) {}
+            int count = 0;
+        };
+        static bool lastCount = 0;
+        static std::string lastName = "asoeigoaiiovuoewi";
+        static auto printNode = [](const FBXNode& node, int level) {
+            std::string indentation { "" };
+            for (int i = level; i > 0; i--) {
+                indentation += "    ";
+            }
+
+            std::string toPrint = indentation + node.name.toStdString();
+            if (toPrint != lastName) {
+                if (lastCount > 0) {
+                    std::cout << lastName << "(" << lastCount << " more)" << std::endl;
+                    lastCount = 0;
+                }
+                std::cout << toPrint << std::endl;
+                lastName = toPrint;
+            } else {
+                lastCount++;
+            }
+            std::string props = "";
+            for (auto& prop : node.properties) {
+                props += prop.value<QString>().toStdString() + "; ";
+            }
+            std::cout << indentation << "  Properties: " << props << std::endl;
+
+            return;
+        };
+        std::vector<FBXNode> toPrint;
+        std::vector<Count> toPreviousLevel;
+        toPrint.push_back(_rootNode);
+        toPreviousLevel.push_back(1);
+        while (!toPrint.empty()) {
+            auto& parentNode = toPrint[toPrint.size()-1];
+            auto currentLevel = toPreviousLevel.size()-1;
+            printNode(parentNode, currentLevel);
+
+            toPrint.pop_back();
+            toPreviousLevel[currentLevel].count--;
+
+            auto& children = parentNode.children;
+            if (!children.empty()) {
+                toPreviousLevel.push_back(children.size());
+                for (auto& child : children) {
+                    toPrint.push_back(child);
+                }
+            }
+
+            while (!toPreviousLevel.empty() && toPreviousLevel[toPreviousLevel.size()-1].count <= 0) {
+                toPreviousLevel.pop_back();
+            }
+        }
+        std::cout << std::endl;
+    }
 
     return HFMModel::Pointer(extractHFMModel(mapping, url.toString()));
 }
