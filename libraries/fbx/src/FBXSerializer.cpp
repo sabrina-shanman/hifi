@@ -983,6 +983,7 @@ HFMModel* FBXSerializer::extractHFMModel(const QVariantHash& mapping, const QStr
 
 
                             foreach(const FBXNode& property, subobject.children) {
+                                std::cout << "Found material property: " << property.properties.at(0).value<QString>().toStdString() << std::endl; // TODO: Remove after testing
                                 if (property.name == propertyName) {
                                     if (property.properties.at(0) == DIFFUSE_COLOR) {
                                         material.diffuseColor = getVec3(property.properties, index);
@@ -1067,13 +1068,25 @@ HFMModel* FBXSerializer::extractHFMModel(const QVariantHash& mapping, const QStr
                                         material.useOcclusionMap = (bool)property.properties.at(index).value<double>();
 
                                     } else if (property.properties.at(0) == MAYA_UV_SCALE) {
-                                        if (property.properties.size() == 3) {
-                                            glm::vec3 scale { property.properties.at(1).value<double>(), property.properties.at(2).value<double>(), 1.0 };
+                                        std::cout << "Material property found: MAYA_UV_SCALE" << std::endl; // TODO: Remove after testing
+                                        if (property.properties.size() == 6) {
+                                            std::cout << "6 properties" << std::endl; // TODO: Remove after testing
+                                            glm::vec3 scale;
+                                            if (property.properties.at(2).value<QString>() == "Vector2") {
+                                                std::cout << "2vec" << std::endl; // TODO: Remove after testing
+                                                scale = glm::vec3(property.properties.at(4).value<double>(), property.properties.at(5).value<double>(), 1.0);
+                                            } else { // Vector (3d)
+                                                std::cout << "3vec" << std::endl; // TODO: Remove after testing
+                                                scale = glm::vec3(property.properties.at(3).value<double>(), property.properties.at(4).value<double>(),  property.properties.at(5).value<double>());
+                                            }
                                             if (scale.x == 0.0) {
                                                 scale.x = 1.0;
                                             }
                                             if (scale.y == 0.0) {
                                                 scale.y = 1.0;
+                                            }
+                                            if (scale.z == 0.0) {
+                                                scale.z = 1.0;
                                             }
                                             material.normalTexture.transform.postScale(scale);
                                             material.albedoTexture.transform.postScale(scale);
@@ -1088,8 +1101,17 @@ HFMModel* FBXSerializer::extractHFMModel(const QVariantHash& mapping, const QStr
                                             material.lightmapTexture.transform.postScale(scale);
                                         }
                                     } else if (property.properties.at(0) == MAYA_UV_OFFSET) {
-                                        if (property.properties.size() == 3) {
-                                            glm::vec3 translation { property.properties.at(1).value<double>(), property.properties.at(2).value<double>(), 0.0 };
+                                        std::cout << "Material property found: MAYA_UV_OFFSET" << std::endl; // TODO: Remove after testing
+                                        if (property.properties.size() == 6) {
+                                            std::cout << "6 properties" << std::endl; // TODO: Remove after testing
+                                            glm::vec3 translation;
+                                            if (property.properties.at(2).value<QString>() == "Vector2") {
+                                                std::cout << "2vec" << std::endl; // TODO: Remove after testing
+                                                translation = glm::vec3(property.properties.at(4).value<double>(), property.properties.at(5).value<double>(), 1.0);
+                                            } else { // Vector (3d)
+                                                std::cout << "3vec" << std::endl; // TODO: Remove after testing
+                                                translation = glm::vec3(property.properties.at(3).value<double>(), property.properties.at(4).value<double>(),  property.properties.at(5).value<double>());
+                                            }
                                             material.normalTexture.transform.postTranslate(translation);
                                             material.albedoTexture.transform.postTranslate(translation);
                                             material.opacityTexture.transform.postTranslate(translation);
