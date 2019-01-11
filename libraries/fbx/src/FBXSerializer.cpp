@@ -833,19 +833,19 @@ HFMModel* FBXSerializer::extractHFMModel(const QVariantHash& mapping, const QStr
                         } else if (subobject.name == "Texture_Alpha_Source" && subobject.properties.length() >= TEXTURE_ALPHA_SOURCE_MIN_SIZE) {
                             tex.assign<uint8_t>(tex.alphaSource, subobject.properties.at(0).value<int>());
                         } else if ((subobject.name == "ModelUVTranslation" || subobject.name == "Maya|uv_offset") && subobject.properties.length() >= MODEL_UV_TRANSLATION_MIN_SIZE) {
-                            tex.assign(tex.UVTranslation, glm::vec2(subobject.properties.at(0).value<double>(),
-                                                                    subobject.properties.at(1).value<double>()));
+                            auto newTranslation = glm::vec3(subobject.properties.at(0).value<double>(), subobject.properties.at(1).value<double>(), 0.0);
+                            tex.assign(tex.translation, tex.translation + newTranslation);
                             std::cout << "ModelUVTranslation: " << subobject.properties.at(0).value<double>() << ", " << subobject.properties.at(1).value<double>() << std::endl; // TODO: Remove after testing
                         } else if ((subobject.name == "ModelUVScaling" || subobject.name == "Maya|uv_scale") && subobject.properties.length() >= MODEL_UV_SCALING_MIN_SIZE) {
-                            tex.assign(tex.UVScaling, glm::vec2(subobject.properties.at(0).value<double>(),
-                                                                subobject.properties.at(1).value<double>()));
+                            auto newScaling = glm::vec3(subobject.properties.at(0).value<double>(), subobject.properties.at(1).value<double>(), 1.0);
+                            if (newScaling.x == 0.0f) {
+                                newScaling.x = 0.0f;
+                            }
+                            if (newScaling.y == 0.0f) {
+                                newScaling.y = 0.0f;
+                            }
+                            tex.assign(tex.scaling, tex.scaling * newScaling);
                             std::cout << "ModelUVScaling: " << subobject.properties.at(0).value<double>() << ", " << subobject.properties.at(1).value<double>() << std::endl; // TODO: Remove after testing
-                            if (tex.UVScaling.x == 0.0f) {
-                                tex.UVScaling.x = 1.0f;
-                            }
-                            if (tex.UVScaling.y == 0.0f) {
-                                tex.UVScaling.y = 1.0f;
-                            }
                         } else if (subobject.name == "Cropping" && subobject.properties.length() >= CROPPING_MIN_SIZE) {
                             tex.assign(tex.cropping, glm::vec4(subobject.properties.at(0).value<int>(),
                                                                 subobject.properties.at(1).value<int>(),
@@ -873,20 +873,21 @@ HFMModel* FBXSerializer::extractHFMModel(const QVariantHash& mapping, const QStr
                                         } else if (property.properties.at(0) == USE_MATERIAL) {
                                             tex.assign<bool>(tex.useMaterial, property.properties.at(index).value<int>());
                                         } else if (property.properties.at(0) == TRANSLATION) {
-                                            tex.assign(tex.translation, getVec3(property.properties, index));
+                                            tex.assign(tex.translation, tex.translation + getVec3(property.properties, index));
                                         } else if (property.properties.at(0) == ROTATION) {
                                             tex.assign(tex.rotation, getVec3(property.properties, index));
                                         } else if (property.properties.at(0) == SCALING) {
-                                            tex.assign(tex.scaling, getVec3(property.properties, index));
-                                            if (tex.scaling.x == 0.0f) {
-                                                tex.scaling.x = 1.0f;
+                                            auto newScaling = getVec3(property.properties, index);
+                                            if (newScaling.x == 0.0f) {
+                                                newScaling.x == 1.0f;
                                             }
-                                            if (tex.scaling.y == 0.0f) {
-                                                tex.scaling.y = 1.0f;
+                                            if (newScaling.y == 0.0f) {
+                                                newScaling.y == 1.0f;
                                             }
-                                            if (tex.scaling.z == 0.0f) {
-                                                tex.scaling.z = 1.0f;
+                                            if (newScaling.z == 0.0f) {
+                                                newScaling.z == 1.0f;
                                             }
+                                            tex.assign(tex.scaling, tex.scaling * newScaling);
                                         }
 #if defined(DEBUG_FBXSERIALIZER)
                                         else {
