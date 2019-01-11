@@ -45,8 +45,8 @@ HFMTexture FBXSerializer::getTexture(const QString& textureID) {
     if (_textureParams.contains(textureID)) {
         auto p = _textureParams.value(textureID);
 
-        texture.transform.setTranslation(p.translation);
-        texture.transform.setRotation(glm::quat(glm::radians(p.rotation)));
+        texture.transform.postTranslate(p.translation);
+        texture.transform.postRotate(glm::quat(glm::radians(p.rotation)));
 
         auto scaling = p.scaling;
         // Protect from bad scaling which should never happen
@@ -59,7 +59,7 @@ HFMTexture FBXSerializer::getTexture(const QString& textureID) {
         if (scaling.z == 0.0f) {
             scaling.z = 1.0f;
         }
-        texture.transform.setScale(scaling);
+        texture.transform.postScale(scaling);
 
         if ((p.UVSet != "map1") && (p.UVSet != "UVSet0")) {
             texture.texcoordSet = 1;

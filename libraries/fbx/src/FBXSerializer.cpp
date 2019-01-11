@@ -832,11 +832,11 @@ HFMModel* FBXSerializer::extractHFMModel(const QVariantHash& mapping, const QStr
                             _textureNames.insert(getID(object.properties), name);
                         } else if (subobject.name == "Texture_Alpha_Source" && subobject.properties.length() >= TEXTURE_ALPHA_SOURCE_MIN_SIZE) {
                             tex.assign<uint8_t>(tex.alphaSource, subobject.properties.at(0).value<int>());
-                        } else if ((subobject.name == "ModelUVTranslation" || subobject.name == "Maya|uv_offset") && subobject.properties.length() >= MODEL_UV_TRANSLATION_MIN_SIZE) {
+                        } else if ((subobject.name == "ModelUVTranslation") && subobject.properties.length() >= MODEL_UV_TRANSLATION_MIN_SIZE) {
                             auto newTranslation = glm::vec3(subobject.properties.at(0).value<double>(), subobject.properties.at(1).value<double>(), 0.0);
                             tex.assign(tex.translation, tex.translation + newTranslation);
                             std::cout << "ModelUVTranslation: " << subobject.properties.at(0).value<double>() << ", " << subobject.properties.at(1).value<double>() << std::endl; // TODO: Remove after testing
-                        } else if ((subobject.name == "ModelUVScaling" || subobject.name == "Maya|uv_scale") && subobject.properties.length() >= MODEL_UV_SCALING_MIN_SIZE) {
+                        } else if ((subobject.name == "ModelUVScaling") && subobject.properties.length() >= MODEL_UV_SCALING_MIN_SIZE) {
                             auto newScaling = glm::vec3(subobject.properties.at(0).value<double>(), subobject.properties.at(1).value<double>(), 1.0);
                             if (newScaling.x == 0.0f) {
                                 newScaling.x = 0.0f;
@@ -976,6 +976,8 @@ HFMModel* FBXSerializer::extractHFMModel(const QVariantHash& mapping, const QStr
                             static const QVariant MAYA_EMISSIVE_INTENSITY = QByteArray("Maya|emissive_intensity");
                             static const QVariant MAYA_USE_EMISSIVE_MAP = QByteArray("Maya|use_emissive_map");
                             static const QVariant MAYA_USE_AO_MAP = QByteArray("Maya|use_ao_map");
+                            static const QVariant MAYA_UV_SCALE = QByteArray("Maya|uv_scale");
+                            static const QVariant MAYA_UV_OFFSET = QByteArray("Maya|uv_offset");
 
 
 
@@ -1064,6 +1066,42 @@ HFMModel* FBXSerializer::extractHFMModel(const QVariantHash& mapping, const QStr
                                         material.isPBSMaterial = true;
                                         material.useOcclusionMap = (bool)property.properties.at(index).value<double>();
 
+                                    } else if (property.properties.at(0) == MAYA_UV_SCALE) {
+                                        if (property.properties.size() == 3) {
+                                            glm::vec3 scale { property.properties.at(1).value<double>(), property.properties.at(2).value<double>(), 1.0 };
+                                            if (scale.x == 0.0) {
+                                                scale.x = 1.0;
+                                            }
+                                            if (scale.y == 0.0) {
+                                                scale.y = 1.0;
+                                            }
+                                            material.normalTexture.transform.postScale(scale);
+                                            material.albedoTexture.transform.postScale(scale);
+                                            material.opacityTexture.transform.postScale(scale);
+                                            material.glossTexture.transform.postScale(scale);
+                                            material.roughnessTexture.transform.postScale(scale);
+                                            material.specularTexture.transform.postScale(scale);
+                                            material.metallicTexture.transform.postScale(scale);
+                                            material.emissiveTexture.transform.postScale(scale);
+                                            material.occlusionTexture.transform.postScale(scale);
+                                            material.scatteringTexture.transform.postScale(scale);
+                                            material.lightmapTexture.transform.postScale(scale);
+                                        }
+                                    } else if (property.properties.at(0) == MAYA_UV_OFFSET) {
+                                        if (property.properties.size() == 3) {
+                                            glm::vec3 translation { property.properties.at(1).value<double>(), property.properties.at(2).value<double>(), 0.0 };
+                                            material.normalTexture.transform.postTranslate(translation);
+                                            material.albedoTexture.transform.postTranslate(translation);
+                                            material.opacityTexture.transform.postTranslate(translation);
+                                            material.glossTexture.transform.postTranslate(translation);
+                                            material.roughnessTexture.transform.postTranslate(translation);
+                                            material.specularTexture.transform.postTranslate(translation);
+                                            material.metallicTexture.transform.postTranslate(translation);
+                                            material.emissiveTexture.transform.postTranslate(translation);
+                                            material.occlusionTexture.transform.postTranslate(translation);
+                                            material.scatteringTexture.transform.postTranslate(translation);
+                                            material.lightmapTexture.transform.postTranslate(translation);
+                                        }
                                     } else {
                                         const QString propname = property.properties.at(0).toString();
                                         unknowns.push_back(propname.toStdString());
