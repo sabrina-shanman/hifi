@@ -832,11 +832,11 @@ HFMModel* FBXSerializer::extractHFMModel(const QVariantHash& mapping, const QStr
                             _textureNames.insert(getID(object.properties), name);
                         } else if (subobject.name == "Texture_Alpha_Source" && subobject.properties.length() >= TEXTURE_ALPHA_SOURCE_MIN_SIZE) {
                             tex.assign<uint8_t>(tex.alphaSource, subobject.properties.at(0).value<int>());
-                        } else if (subobject.name == "ModelUVTranslation" && subobject.properties.length() >= MODEL_UV_TRANSLATION_MIN_SIZE) {
+                        } else if ((subobject.name == "ModelUVTranslation" || subobject.name == "Maya|uv_offset") && subobject.properties.length() >= MODEL_UV_TRANSLATION_MIN_SIZE) {
                             tex.assign(tex.UVTranslation, glm::vec2(subobject.properties.at(0).value<double>(),
                                                                     subobject.properties.at(1).value<double>()));
                             std::cout << "ModelUVTranslation: " << subobject.properties.at(0).value<double>() << ", " << subobject.properties.at(1).value<double>() << std::endl; // TODO: Remove after testing
-                        } else if (subobject.name == "ModelUVScaling" && subobject.properties.length() >= MODEL_UV_SCALING_MIN_SIZE) {
+                        } else if ((subobject.name == "ModelUVScaling" || subobject.name == "Maya|uv_scale") && subobject.properties.length() >= MODEL_UV_SCALING_MIN_SIZE) {
                             tex.assign(tex.UVScaling, glm::vec2(subobject.properties.at(0).value<double>(),
                                                                 subobject.properties.at(1).value<double>()));
                             std::cout << "ModelUVScaling: " << subobject.properties.at(0).value<double>() << ", " << subobject.properties.at(1).value<double>() << std::endl; // TODO: Remove after testing
