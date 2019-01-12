@@ -835,7 +835,6 @@ HFMModel* FBXSerializer::extractHFMModel(const QVariantHash& mapping, const QStr
                         } else if ((subobject.name == "ModelUVTranslation") && subobject.properties.length() >= MODEL_UV_TRANSLATION_MIN_SIZE) {
                             auto newTranslation = glm::vec3(subobject.properties.at(0).value<double>(), subobject.properties.at(1).value<double>(), 0.0);
                             tex.assign(tex.translation, tex.translation + newTranslation);
-                            std::cout << "ModelUVTranslation: " << subobject.properties.at(0).value<double>() << ", " << subobject.properties.at(1).value<double>() << std::endl; // TODO: Remove after testing
                         } else if ((subobject.name == "ModelUVScaling") && subobject.properties.length() >= MODEL_UV_SCALING_MIN_SIZE) {
                             auto newScaling = glm::vec3(subobject.properties.at(0).value<double>(), subobject.properties.at(1).value<double>(), 1.0);
                             if (newScaling.x == 0.0f) {
@@ -845,7 +844,6 @@ HFMModel* FBXSerializer::extractHFMModel(const QVariantHash& mapping, const QStr
                                 newScaling.y = 0.0f;
                             }
                             tex.assign(tex.scaling, tex.scaling * newScaling);
-                            std::cout << "ModelUVScaling: " << subobject.properties.at(0).value<double>() << ", " << subobject.properties.at(1).value<double>() << std::endl; // TODO: Remove after testing
                         } else if (subobject.name == "Cropping" && subobject.properties.length() >= CROPPING_MIN_SIZE) {
                             tex.assign(tex.cropping, glm::vec4(subobject.properties.at(0).value<int>(),
                                                                 subobject.properties.at(1).value<int>(),
@@ -984,7 +982,6 @@ HFMModel* FBXSerializer::extractHFMModel(const QVariantHash& mapping, const QStr
 
 
                             foreach(const FBXNode& property, subobject.children) {
-                                std::cout << "Found material property: " << property.properties.at(0).value<QString>().toStdString() << std::endl; // TODO: Remove after testing
                                 if (property.name == propertyName) {
                                     if (property.properties.at(0) == DIFFUSE_COLOR) {
                                         material.diffuseColor = getVec3(property.properties, index);
@@ -1069,15 +1066,11 @@ HFMModel* FBXSerializer::extractHFMModel(const QVariantHash& mapping, const QStr
                                         material.useOcclusionMap = (bool)property.properties.at(index).value<double>();
 
                                     } else if (property.properties.at(0) == MAYA_UV_SCALE) {
-                                        std::cout << "Material property found: MAYA_UV_SCALE" << std::endl; // TODO: Remove after testing
                                         if (property.properties.size() == 6) {
-                                            std::cout << "6 properties" << std::endl; // TODO: Remove after testing
                                             glm::vec3 scale;
                                             if (property.properties.at(2).value<QString>() == "Vector2") {
-                                                std::cout << "2vec" << std::endl; // TODO: Remove after testing
                                                 scale = glm::vec3(property.properties.at(4).value<double>(), property.properties.at(5).value<double>(), 1.0);
                                             } else { // Vector (3d)
-                                                std::cout << "3vec" << std::endl; // TODO: Remove after testing
                                                 scale = glm::vec3(property.properties.at(3).value<double>(), property.properties.at(4).value<double>(),  property.properties.at(5).value<double>());
                                             }
                                             if (scale.x == 0.0) {
@@ -1092,15 +1085,11 @@ HFMModel* FBXSerializer::extractHFMModel(const QVariantHash& mapping, const QStr
                                             materialParam.scaling *= scale;
                                         }
                                     } else if (property.properties.at(0) == MAYA_UV_OFFSET) {
-                                        std::cout << "Material property found: MAYA_UV_OFFSET" << std::endl; // TODO: Remove after testing
                                         if (property.properties.size() == 6) {
-                                            std::cout << "6 properties" << std::endl; // TODO: Remove after testing
                                             glm::vec3 translation;
                                             if (property.properties.at(2).value<QString>() == "Vector2") {
-                                                std::cout << "2vec" << std::endl; // TODO: Remove after testing
                                                 translation = glm::vec3(property.properties.at(4).value<double>(), property.properties.at(5).value<double>(), 1.0);
                                             } else { // Vector (3d)
-                                                std::cout << "3vec" << std::endl; // TODO: Remove after testing
                                                 translation = glm::vec3(property.properties.at(3).value<double>(), property.properties.at(4).value<double>(),  property.properties.at(5).value<double>());
                                             }
                                             materialParam.translation += translation;
