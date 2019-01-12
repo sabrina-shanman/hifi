@@ -932,6 +932,7 @@ HFMModel* FBXSerializer::extractHFMModel(const QVariantHash& mapping, const QStr
                     }
                 } else if (object.name == "Material") {
                     HFMMaterial material;
+                    MaterialParam materialParam;
                     material.name = (object.properties.at(1).toString());
                     foreach (const FBXNode& subobject, object.children) {
                         bool properties = false;
@@ -1088,17 +1089,7 @@ HFMModel* FBXSerializer::extractHFMModel(const QVariantHash& mapping, const QStr
                                             if (scale.z == 0.0) {
                                                 scale.z = 1.0;
                                             }
-                                            material.normalTexture.transform.postScale(scale);
-                                            material.albedoTexture.transform.postScale(scale);
-                                            material.opacityTexture.transform.postScale(scale);
-                                            material.glossTexture.transform.postScale(scale);
-                                            material.roughnessTexture.transform.postScale(scale);
-                                            material.specularTexture.transform.postScale(scale);
-                                            material.metallicTexture.transform.postScale(scale);
-                                            material.emissiveTexture.transform.postScale(scale);
-                                            material.occlusionTexture.transform.postScale(scale);
-                                            material.scatteringTexture.transform.postScale(scale);
-                                            material.lightmapTexture.transform.postScale(scale);
+                                            materialParam.scaling *= scale;
                                         }
                                     } else if (property.properties.at(0) == MAYA_UV_OFFSET) {
                                         std::cout << "Material property found: MAYA_UV_OFFSET" << std::endl; // TODO: Remove after testing
@@ -1112,17 +1103,7 @@ HFMModel* FBXSerializer::extractHFMModel(const QVariantHash& mapping, const QStr
                                                 std::cout << "3vec" << std::endl; // TODO: Remove after testing
                                                 translation = glm::vec3(property.properties.at(3).value<double>(), property.properties.at(4).value<double>(),  property.properties.at(5).value<double>());
                                             }
-                                            material.normalTexture.transform.postTranslate(translation);
-                                            material.albedoTexture.transform.postTranslate(translation);
-                                            material.opacityTexture.transform.postTranslate(translation);
-                                            material.glossTexture.transform.postTranslate(translation);
-                                            material.roughnessTexture.transform.postTranslate(translation);
-                                            material.specularTexture.transform.postTranslate(translation);
-                                            material.metallicTexture.transform.postTranslate(translation);
-                                            material.emissiveTexture.transform.postTranslate(translation);
-                                            material.occlusionTexture.transform.postTranslate(translation);
-                                            material.scatteringTexture.transform.postTranslate(translation);
-                                            material.lightmapTexture.transform.postTranslate(translation);
+                                            materialParam.translation += translation;
                                         }
                                     } else {
                                         const QString propname = property.properties.at(0).toString();
@@ -1145,6 +1126,7 @@ HFMModel* FBXSerializer::extractHFMModel(const QVariantHash& mapping, const QStr
                     }
                     material.materialID = getID(object.properties);
                     _hfmMaterials.insert(material.materialID, material);
+                    _materialParams.insert(material.materialID, materialParam);
 
 
                 } else if (object.name == "NodeAttribute") {
@@ -1602,7 +1584,9 @@ HFMModel* FBXSerializer::extractHFMModel(const QVariantHash& mapping, const QStr
                 materialIndex++;
 
             } else if (_textureFilenames.contains(childID)) {
-                HFMTexture texture = getTexture(childID);
+                // NOTE (Sabrina 2019/01/11): getTextures now takes in the materialID as a second parameter, because FBX material nodes can sometimes have uv transform information (ex: "Maya|uv_scale")
+                // I'm leaving the second parameter blank right now as this code may never be used.
+                HFMTexture texture = getTexture(childID, "");
                 for (int j = 0; j < extracted.partMaterialTextures.size(); j++) {
                     int partTexture = extracted.partMaterialTextures.at(j).second;
                     if (partTexture == textureIndex && !(partTexture == 0 && materialsHaveTextures)) {
