@@ -24,10 +24,6 @@ bool needTangents(const hfm::Mesh& mesh, const QHash<QString, hfm::Material>& ma
     return false;
 }
 
-void CalculateMeshTangentsTask::configure(const Config& config) {
-    _passthrough = config.passthrough;
-}
-
 void CalculateMeshTangentsTask::run(const baker::BakeContextPointer& context, const Input& input, Output& output) {
     const auto& normalsPerMesh = input.get0();
     const std::vector<hfm::Mesh>& meshes = input.get1();
@@ -42,9 +38,9 @@ void CalculateMeshTangentsTask::run(const baker::BakeContextPointer& context, co
         tangentsPerMeshOut.emplace_back();
         auto& tangentsOut = tangentsPerMeshOut[tangentsPerMeshOut.size()-1];
 
-        // Check if we already have tangents and therefore do not need to do any calculation, or if we actually don't want tangents
+        // Check if we already have tangents and therefore do not need to do any calculation
         // Otherwise confirm if we have the normals needed, and need to calculate the tangents
-        if (!tangentsIn.empty() || _passthrough) {
+        if (!tangentsIn.empty()) {
             tangentsOut = tangentsIn.toStdVector();
         } else if (!normals.empty() && needTangents(mesh, materials)) {
             tangentsOut.resize(normals.size());

@@ -11,11 +11,9 @@
 
 #include "CalculateBlendshapeTangentsTask.h"
 
-#include "ModelMath.h"
+#include <set>
 
-void CalculateBlendshapeTangentsTask::configure(const Config& config) {
-    _passthrough = config.passthrough;
-}
+#include "ModelMath.h"
 
 void CalculateBlendshapeTangentsTask::run(const baker::BakeContextPointer& context, const Input& input, Output& output) {
     const auto& normalsPerBlendshapePerMesh = input.get0();
@@ -34,13 +32,11 @@ void CalculateBlendshapeTangentsTask::run(const baker::BakeContextPointer& conte
 
         // Check if we actually need to calculate the tangents, or just append empty arrays
         bool needTangents = false;
-        if (!_passthrough) {
-            for (const auto& meshPart : mesh.parts) {
-                auto materialIt = materials.find(meshPart.materialID);
-                if (materialIt != materials.end() && (*materialIt).needTangentSpace()) {
-                    needTangents = true;
-                    break;
-                }
+        for (const auto& meshPart : mesh.parts) {
+            auto materialIt = materials.find(meshPart.materialID);
+            if (materialIt != materials.end() && (*materialIt).needTangentSpace()) {
+                needTangents = true;
+                break;
             }
         }
 

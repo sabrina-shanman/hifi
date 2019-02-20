@@ -13,10 +13,6 @@
 
 #include "ModelMath.h"
 
-void CalculateBlendshapeNormalsTask::configure(const Config& config) {
-    _passthrough = config.passthrough;
-}
-
 void CalculateBlendshapeNormalsTask::run(const baker::BakeContextPointer& context, const Input& input, Output& output) {
     const auto& blendshapesPerMesh = input.get0();
     const auto& meshes = input.get1();
@@ -33,8 +29,8 @@ void CalculateBlendshapeNormalsTask::run(const baker::BakeContextPointer& contex
         for (size_t j = 0; j < blendshapes.size(); j++) {
             const auto& blendshape = blendshapes[j];
             const auto& normalsIn = blendshape.normals;
-            // Check if normals are already defined. Otherwise, if desired, calculate them from existing blendshape vertices.
-            if (!normalsIn.empty() || _passthrough) {
+            // Check if normals are already defined. Otherwise, calculate them from existing blendshape vertices.
+            if (!normalsIn.empty()) {
                 normalsPerBlendshapeOut.push_back(normalsIn.toStdVector());
             } else {
                 // Create lookup to get index in blendshape from vertex index in mesh

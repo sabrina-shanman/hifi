@@ -27,13 +27,6 @@ namespace baker {
 
     using EnginePointer = std::shared_ptr<Engine>;
 
-    // The property "passthrough", when enabled, will let inputs flow directly to the outputs where possible, unlike the disabled property, which discards all data
-    class PassthroughConfig : public baker::JobConfig {
-        Q_OBJECT
-        Q_PROPERTY(bool passthrough MEMBER passthrough)
-    public:
-        bool passthrough { false };
-    };
 };
 
 #endif // hifi_baker_Engine_h
