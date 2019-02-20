@@ -17,14 +17,21 @@
 #include "Engine.h"
 #include "BakerTypes.h"
 
+using CalculateMeshNormalsConfig = baker::PassthroughConfig;
+
 // Calculate mesh normals if not already present in the mesh
 class CalculateMeshNormalsTask {
 public:
+    using Config = CalculateMeshNormalsConfig;
     using Input = std::vector<hfm::Mesh>;
     using Output = baker::NormalsPerMesh;
-    using JobModel = baker::Job::ModelIO<CalculateMeshNormalsTask, Input, Output>;
+    using JobModel = baker::Job::ModelIO<CalculateMeshNormalsTask, Input, Output, Config>;
 
+    void configure(const Config& config);
     void run(const baker::BakeContextPointer& context, const Input& input, Output& output);
+
+protected:
+    bool _passthrough { false };
 };
 
 #endif // hifi_CalculateMeshNormalsTask_h

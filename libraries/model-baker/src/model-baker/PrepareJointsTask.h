@@ -18,13 +18,20 @@
 
 #include "Engine.h"
 
+using PrepareJointsConfig = baker::PassthroughConfig;
+
 class PrepareJointsTask {
 public:
+    using Config = PrepareJointsConfig;
     using Input = baker::VaryingSet2<std::vector<hfm::Joint>, QVariantHash /*mapping*/>;
     using Output = baker::VaryingSet3<std::vector<hfm::Joint>, QMap<int, glm::quat> /*jointRotationOffsets*/, QHash<QString, int> /*jointIndices*/>;
-    using JobModel = baker::Job::ModelIO<PrepareJointsTask, Input, Output>;
+    using JobModel = baker::Job::ModelIO<PrepareJointsTask, Input, Output, Config>;
 
+    void configure(const Config& config);
     void run(const baker::BakeContextPointer& context, const Input& input, Output& output);
+
+protected:
+    bool _passthrough { false };
 };
 
 #endif // hifi_PrepareJointsTask_h

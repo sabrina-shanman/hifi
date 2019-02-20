@@ -13,6 +13,10 @@
 
 #include "ModelMath.h"
 
+void CalculateMeshNormalsTask::configure(const Config& config) {
+    _passthrough = config.passthrough;
+}
+
 void CalculateMeshNormalsTask::run(const baker::BakeContextPointer& context, const Input& input, Output& output) {
     const auto& meshes = input;
     auto& normalsPerMeshOut = output;
@@ -22,8 +26,8 @@ void CalculateMeshNormalsTask::run(const baker::BakeContextPointer& context, con
         const auto& mesh = meshes[i];
         normalsPerMeshOut.emplace_back();
         auto& normalsOut = normalsPerMeshOut[normalsPerMeshOut.size()-1];
-        // Only calculate normals if this mesh doesn't already have them
-        if (!mesh.normals.empty()) {
+        // Only calculate normals if this mesh doesn't already have them, and if we want them
+        if (!mesh.normals.empty() || _passthrough) {
             normalsOut = mesh.normals.toStdVector();
         } else {
             normalsOut.resize(mesh.vertices.size());

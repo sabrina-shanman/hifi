@@ -15,14 +15,21 @@
 #include "Engine.h"
 #include "BakerTypes.h"
 
+using CalculateBlendshapeNormalsConfig = baker::PassthroughConfig;
+
 // Calculate blendshape normals if not already present in the blendshape
 class CalculateBlendshapeNormalsTask {
 public:
+    using Config = CalculateBlendshapeNormalsConfig;
     using Input = baker::VaryingSet2<baker::BlendshapesPerMesh, std::vector<hfm::Mesh>>;
     using Output = std::vector<baker::NormalsPerBlendshape>;
-    using JobModel = baker::Job::ModelIO<CalculateBlendshapeNormalsTask, Input, Output>;
+    using JobModel = baker::Job::ModelIO<CalculateBlendshapeNormalsTask, Input, Output, Config>;
 
+    void configure(const Config& config);
     void run(const baker::BakeContextPointer& context, const Input& input, Output& output);
+
+protected:
+    bool _passthrough { false };
 };
 
 #endif // hifi_CalculateBlendshapeNormalsTask_h

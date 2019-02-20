@@ -17,16 +17,23 @@
 #include "Engine.h"
 #include "BakerTypes.h"
 
+using CalculateMeshTangentsConfig = baker::PassthroughConfig;
+
 // Calculate mesh tangents if not already present in the mesh
 class CalculateMeshTangentsTask {
 public:
     using NormalsPerMesh = std::vector<std::vector<glm::vec3>>;
 
+    using Config = CalculateMeshTangentsConfig;
     using Input = baker::VaryingSet3<baker::NormalsPerMesh, std::vector<hfm::Mesh>, QHash<QString, hfm::Material>>;
     using Output = baker::TangentsPerMesh;
-    using JobModel = baker::Job::ModelIO<CalculateMeshTangentsTask, Input, Output>;
+    using JobModel = baker::Job::ModelIO<CalculateMeshTangentsTask, Input, Output, Config>;
 
+    void configure(const Config& config);
     void run(const baker::BakeContextPointer& context, const Input& input, Output& output);
+
+protected:
+    bool _passthrough { false };
 };
 
 #endif // hifi_CalculateMeshTangentsTask_h
