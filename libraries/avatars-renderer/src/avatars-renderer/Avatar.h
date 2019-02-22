@@ -25,6 +25,7 @@
 #include <render/Scene.h>
 #include <graphics-scripting/Forward.h>
 #include <GLMHelpers.h>
+#include <EntityItem.h>
 
 #include <Grab.h>
 #include <ThreadSafeValueCache.h>
@@ -480,8 +481,6 @@ public:
     virtual void setModelScale(float scale) { _modelScale = scale; }
     virtual glm::vec3 scaleForChildren() const override { return glm::vec3(getModelScale()); }
 
-    virtual void setAvatarEntityDataChanged(bool value) override;
-
     // Show hide the model representation of the avatar
     virtual void setEnableMeshVisible(bool isEnabled);
     virtual bool getEnableMeshVisible() const;
@@ -498,6 +497,8 @@ public:
 
     const std::vector<MultiSphereShape>& getMultiSphereShapes() const { return _multiSphereShapes; }
     void tearDownGrabs();
+
+    uint32_t appendSubMetaItems(render::ItemIDs& subItems);
 
 signals:
     void targetScaleChanged(float targetScale);
@@ -603,6 +604,7 @@ protected:
 
     // protected methods...
     bool isLookingAtMe(AvatarSharedPointer avatar) const;
+    virtual void sendPacket(const QUuid& entityID, const EntityItemProperties& properties) const { }
     bool applyGrabChanges();
     void relayJointDataToChildren();
 
@@ -638,17 +640,12 @@ protected:
     RateCounter<> _skeletonModelSimulationRate;
     RateCounter<> _jointDataSimulationRate;
 
-
-protected:
     class AvatarEntityDataHash {
     public:
         AvatarEntityDataHash(uint32_t h) : hash(h) {};
         uint32_t hash { 0 };
         bool success { false };
     };
-
-    using MapOfAvatarEntityDataHashes = QMap<QUuid, AvatarEntityDataHash>;
-    MapOfAvatarEntityDataHashes _avatarEntityDataHashes;
 
     uint64_t _lastRenderUpdateTime { 0 };
     int _leftPointerGeometryID { 0 };
@@ -702,6 +699,13 @@ protected:
     MapOfGrabs _avatarGrabs;
     SetOfIDs _grabsToChange; // updated grab IDs -- changes needed to entities or physics
     VectorOfIDs _grabsToDelete; // deleted grab IDs -- changes needed to entities or physics
+
+    ReadWriteLockable _subItemLock;
+    void updateAttachmentRenderIDs();
+    render::ItemIDs _attachmentRenderIDs;
+    void updateDescendantRenderIDs();
+    render::ItemIDs _descendantRenderIDs;
+    uint32_t _lastAncestorChainRenderableVersion { 0 };
 };
 
 #endif // hifi_Avatar_h
