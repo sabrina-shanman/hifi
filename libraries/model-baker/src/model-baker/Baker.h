@@ -29,6 +29,7 @@ namespace baker {
         // Outputs, available after run() is called
         hfm::Model::Pointer getHFMModel() const;
         MaterialMapping getMaterialMapping() const;
+        const std::vector<hifi::ByteArray>& getDracoMeshes() const;
 
     protected:
         EnginePointer _engine;

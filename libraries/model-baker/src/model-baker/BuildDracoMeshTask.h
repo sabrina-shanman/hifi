@@ -26,14 +26,12 @@ class BuildDracoMeshConfig : public baker::JobConfig {
 public:
     BuildDracoMeshConfig() : baker::JobConfig(false) {}
 
-    // TODO: Configure FBXBaker to set this
     GetMaterialIDCallback materialIDCallback { nullptr };
 };
 
 class BuildDracoMeshTask {
 public:
     using Config = BuildDracoMeshConfig;
-    // TODO: Tangent support (Needs changes to FBXSerializer_Mesh as well)
     using Input = baker::VaryingSet3<std::vector<hfm::Mesh>, baker::NormalsPerMesh, baker::TangentsPerMesh>;
     using Output = std::vector<hifi::ByteArray>;
     using JobModel = baker::Job::ModelIO<BuildDracoMeshTask, Input, Output, Config>;
