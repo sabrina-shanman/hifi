@@ -26,7 +26,7 @@ namespace baker {
         void run();
 
         // Outputs, available after run() is called
-        hfm::Model::Pointer hfmModel;
+        hfm::Model::Pointer getHFMModel() const;
 
     protected:
         EnginePointer _engine;

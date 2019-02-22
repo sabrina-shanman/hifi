@@ -173,7 +173,10 @@ namespace baker {
 
     void Baker::run() {
         _engine->run();
-        hfmModel = _engine->getOutput().get<BakerEngineBuilder::Output>();
+    }
+
+    hfm::Model::Pointer Baker::getHFMModel() const {
+        return _engine->getOutput().get<BakerEngineBuilder::Output>();
     }
 
 };
