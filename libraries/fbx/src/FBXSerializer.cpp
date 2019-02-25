@@ -386,6 +386,8 @@ QByteArray fileOnUrl(const QByteArray& filepath, const QString& url) {
 
 HFMModel* FBXSerializer::extractHFMModel(const QVariantHash& mapping, const QString& url) {
     const FBXNode& node = _rootNode;
+    bool deduplicateIndices = mapping["deduplicateIndices"].toBool();
+
     QMap<QString, ExtractedMesh> meshes;
     QHash<QString, QString> modelIDsToNames;
     QHash<QString, int> meshIDsToMeshIndices;
@@ -487,7 +489,7 @@ HFMModel* FBXSerializer::extractHFMModel(const QVariantHash& mapping, const QStr
             foreach (const FBXNode& object, child.children) {
                 if (object.name == "Geometry") {
                     if (object.properties.at(2) == "Mesh") {
-                        meshes.insert(getID(object.properties), extractMesh(object, meshIndex));
+                        meshes.insert(getID(object.properties), extractMesh(object, meshIndex, deduplicateIndices));
                     } else { // object.properties.at(2) == "Shape"
                         ExtractedBlendshape extracted = { getID(object.properties), extractBlendshape(object) };
                         blendshapes.append(extracted);
@@ -634,7 +636,7 @@ HFMModel* FBXSerializer::extractHFMModel(const QVariantHash& mapping, const QStr
                         } else if (subobject.name == "Vertices") {
                             // it's a mesh as well as a model
                             mesh = &meshes[getID(object.properties)];
-                            *mesh = extractMesh(object, meshIndex);
+                            *mesh = extractMesh(object, meshIndex, deduplicateIndices);
 
                         } else if (subobject.name == "Shape") {
                             ExtractedBlendshape blendshape =  { subobject.properties.at(0).toString(),
@@ -1683,6 +1685,8 @@ HFMModel::Pointer FBXSerializer::read(const QByteArray& data, const QVariantHash
     buffer.open(QIODevice::ReadOnly);
 
     _rootNode = parseFBX(&buffer);
+
+    // FBXSerializer's mapping parameter supports the bool "deduplicateIndices," which is passed into FBXSerializer::extractMesh as "deduplicate"
 
     return HFMModel::Pointer(extractHFMModel(mapping, url.toString()));
 }
