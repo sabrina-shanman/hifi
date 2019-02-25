@@ -51,10 +51,15 @@ public:
     QUrl getModelURL() const { return _modelURL; }
     QString getBakedModelFilePath() const { return _bakedModelFilePath; }
 
+signals:
+    void modelLoaded();
+
 public slots:
+    virtual void bake() override;
     virtual void abort() override;
 
 protected:
+    void saveSourceModel();
     void checkIfTexturesFinished();
     void texturesFinished();
     void embedTextureMetaData();
@@ -68,6 +73,10 @@ protected:
     QString _bakedModelFilePath;
     QDir _modelTempDir;
     QString _originalModelFilePath;
+
+protected slots:
+    void handleModelNetworkReply();
+    virtual void bakeSourceCopy() = 0;
 
 private slots:
     void handleBakedTexture();

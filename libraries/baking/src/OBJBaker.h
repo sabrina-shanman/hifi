@@ -27,18 +27,10 @@ class OBJBaker : public ModelBaker {
 public:
     using ModelBaker::ModelBaker;
 
-public slots:
-    virtual void bake() override;
-
-signals:
-    void OBJLoaded();
-
-private slots:
-    void bakeOBJ();
-    void handleOBJNetworkReply();
+protected slots:
+    virtual void bakeSourceCopy() override;
 
 private:
-    void loadOBJ();
     void createFBXNodeTree(FBXNode& rootNode, HFMModel& hfmModel);
     void setMaterialNodeProperties(FBXNode& materialNode, QString material, HFMModel& hfmModel);
     NodeID nextNodeID() { return _nodeID++; }

@@ -33,19 +33,10 @@ class FBXBaker : public ModelBaker {
 public:
     using ModelBaker::ModelBaker;
 
-public slots:
-    virtual void bake() override;
-
-signals:
-    void sourceCopyReadyToLoad();
-
-private slots:
-    void bakeSourceCopy();
-    void handleFBXNetworkReply();
+protected slots:
+    virtual void bakeSourceCopy() override;
 
 private:
-    void loadSourceFBX();
-
     void importScene();
     void embedTextureMetaData();
     void rewriteAndBakeSceneModels();

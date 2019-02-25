@@ -37,22 +37,6 @@
 #include "FBXToJSON.h"
 #endif
 
-void FBXBaker::bake() {    
-    qDebug() << "FBXBaker" << _modelURL << "bake starting";
-
-    // Setup the output folders for the results of this bake
-    initializeOutputDirs();
-
-    if (shouldStop()) {
-        return;
-    }
-
-    connect(this, &FBXBaker::sourceCopyReadyToLoad, this, &FBXBaker::bakeSourceCopy);
-
-    // make a local copy of the FBX file
-    loadSourceFBX();
-}
-
 void FBXBaker::bakeSourceCopy() {
     // load the scene from the FBX file
     importScene();
@@ -76,86 +60,6 @@ void FBXBaker::bakeSourceCopy() {
 
     // check if we're already done with textures (in case we had none to re-write)
     checkIfTexturesFinished();
-}
-
-void FBXBaker::loadSourceFBX() {
-    // check if the FBX is local or first needs to be downloaded
-    if (_modelURL.isLocalFile()) {
-        // load up the local file
-        QFile localFBX { _modelURL.toLocalFile() };
-
-        qDebug() << "Local file url: " << _modelURL << _modelURL.toString() << _modelURL.toLocalFile() << ", copying to: " << _originalModelFilePath;
-
-        if (!localFBX.exists()) {
-            //QMessageBox::warning(this, "Could not find " + _fbxURL.toString(), "");
-            handleError("Could not find " + _modelURL.toString());
-            return;
-        }
-
-        // make a copy in the output folder
-        if (!_originalOutputDir.isEmpty()) {
-            qDebug() << "Copying to: " << _originalOutputDir << "/" << _modelURL.fileName();
-            localFBX.copy(_originalOutputDir + "/" + _modelURL.fileName());
-        }
-
-        localFBX.copy(_originalModelFilePath);
-
-        // emit our signal to start the import of the FBX source copy
-        emit sourceCopyReadyToLoad();
-    } else {
-        // remote file, kick off a download
-        auto& networkAccessManager = NetworkAccessManager::getInstance();
-
-        QNetworkRequest networkRequest;
-
-        // setup the request to follow re-directs and always hit the network
-        networkRequest.setAttribute(QNetworkRequest::FollowRedirectsAttribute, true);
-        networkRequest.setAttribute(QNetworkRequest::CacheLoadControlAttribute, QNetworkRequest::AlwaysNetwork);
-        networkRequest.setHeader(QNetworkRequest::UserAgentHeader, HIGH_FIDELITY_USER_AGENT);
-
-        networkRequest.setUrl(_modelURL);
-
-        qCDebug(model_baking) << "Downloading" << _modelURL;
-        auto networkReply = networkAccessManager.get(networkRequest);
-
-        connect(networkReply, &QNetworkReply::finished, this, &FBXBaker::handleFBXNetworkReply);
-    }
-}
-
-void FBXBaker::handleFBXNetworkReply() {
-    auto requestReply = qobject_cast<QNetworkReply*>(sender());
-
-    if (requestReply->error() == QNetworkReply::NoError) {
-        qCDebug(model_baking) << "Downloaded" << _modelURL;
-
-        // grab the contents of the reply and make a copy in the output folder
-        QFile copyOfOriginal(_originalModelFilePath);
-
-        qDebug(model_baking) << "Writing copy of original FBX to" << _originalModelFilePath << copyOfOriginal.fileName();
-
-        if (!copyOfOriginal.open(QIODevice::WriteOnly)) {
-            // add an error to the error list for this FBX stating that a duplicate of the original FBX could not be made
-            handleError("Could not create copy of " + _modelURL.toString() + " (Failed to open " + _originalModelFilePath + ")");
-            return;
-        }
-        if (copyOfOriginal.write(requestReply->readAll()) == -1) {
-            handleError("Could not create copy of " + _modelURL.toString() + " (Failed to write)");
-            return;
-        }
-
-        // close that file now that we are done writing to it
-        copyOfOriginal.close();
-
-        if (!_originalOutputDir.isEmpty()) {
-            copyOfOriginal.copy(_originalOutputDir + "/" + _modelURL.fileName());
-        }
-
-        // emit our signal to start the import of the FBX source copy
-        emit sourceCopyReadyToLoad();
-    } else {
-        // add an error to our list stating that the FBX could not be downloaded
-        handleError("Failed to download " + _modelURL.toString());
-    }
 }
 
 void FBXBaker::importScene() {

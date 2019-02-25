@@ -12,6 +12,7 @@
 #include "ModelBaker.h"
 
 #include <PathUtils.h>
+#include <NetworkAccessManager.h>
 
 #include <FBXWriter.h>
 
@@ -64,6 +65,22 @@ ModelBaker::~ModelBaker() {
     }
 }
 
+void ModelBaker::bake() {
+    qDebug() << "ModelBaker" << _modelURL << "bake starting";
+
+    // Setup the output folders for the results of this bake
+    initializeOutputDirs();
+
+    if (shouldStop()) {
+        return;
+    }
+
+    connect(this, &ModelBaker::modelLoaded, this, &ModelBaker::bakeSourceCopy);
+
+    // make a local copy of the model
+    saveSourceModel();
+}
+
 void ModelBaker::initializeOutputDirs() {
     // Attempt to make the output folders
     // Warn if there is an output directory using the same name
@@ -84,6 +101,86 @@ void ModelBaker::initializeOutputDirs() {
         if (!QDir().mkpath(_originalOutputDir)) {
             handleError("Failed to create original output folder " + _originalOutputDir);
         }
+    }
+}
+
+void ModelBaker::saveSourceModel() {
+    // check if the FBX is local or first needs to be downloaded
+    if (_modelURL.isLocalFile()) {
+        // load up the local file
+        QFile localModelURL { _modelURL.toLocalFile() };
+
+        qDebug() << "Local file url: " << _modelURL << _modelURL.toString() << _modelURL.toLocalFile() << ", copying to: " << _originalModelFilePath;
+
+        if (!localModelURL.exists()) {
+            //QMessageBox::warning(this, "Could not find " + _fbxURL.toString(), "");
+            handleError("Could not find " + _modelURL.toString());
+            return;
+        }
+
+        // make a copy in the output folder
+        if (!_originalOutputDir.isEmpty()) {
+            qDebug() << "Copying to: " << _originalOutputDir << "/" << _modelURL.fileName();
+            localModelURL.copy(_originalOutputDir + "/" + _modelURL.fileName());
+        }
+
+        localModelURL.copy(_originalModelFilePath);
+
+        // emit our signal to start the import of the FBX source copy
+        emit modelLoaded();
+    } else {
+        // remote file, kick off a download
+        auto& networkAccessManager = NetworkAccessManager::getInstance();
+
+        QNetworkRequest networkRequest;
+
+        // setup the request to follow re-directs and always hit the network
+        networkRequest.setAttribute(QNetworkRequest::FollowRedirectsAttribute, true);
+        networkRequest.setAttribute(QNetworkRequest::CacheLoadControlAttribute, QNetworkRequest::AlwaysNetwork);
+        networkRequest.setHeader(QNetworkRequest::UserAgentHeader, HIGH_FIDELITY_USER_AGENT);
+
+        networkRequest.setUrl(_modelURL);
+
+        qCDebug(model_baking) << "Downloading" << _modelURL;
+        auto networkReply = networkAccessManager.get(networkRequest);
+
+        connect(networkReply, &QNetworkReply::finished, this, &ModelBaker::handleModelNetworkReply);
+    }
+}
+
+void ModelBaker::handleModelNetworkReply() {
+    auto requestReply = qobject_cast<QNetworkReply*>(sender());
+
+    if (requestReply->error() == QNetworkReply::NoError) {
+        qCDebug(model_baking) << "Downloaded" << _modelURL;
+
+        // grab the contents of the reply and make a copy in the output folder
+        QFile copyOfOriginal(_originalModelFilePath);
+
+        qDebug(model_baking) << "Writing copy of original model file to" << _originalModelFilePath << copyOfOriginal.fileName();
+
+        if (!copyOfOriginal.open(QIODevice::WriteOnly)) {
+            // add an error to the error list for this model stating that a duplicate of the original model could not be made
+            handleError("Could not create copy of " + _modelURL.toString() + " (Failed to open " + _originalModelFilePath + ")");
+            return;
+        }
+        if (copyOfOriginal.write(requestReply->readAll()) == -1) {
+            handleError("Could not create copy of " + _modelURL.toString() + " (Failed to write)");
+            return;
+        }
+
+        // close that file now that we are done writing to it
+        copyOfOriginal.close();
+
+        if (!_originalOutputDir.isEmpty()) {
+            copyOfOriginal.copy(_originalOutputDir + "/" + _modelURL.fileName());
+        }
+
+        // emit our signal to start the import of the model source copy
+        emit modelLoaded();
+    } else {
+        // add an error to our list stating that the model could not be downloaded
+        handleError("Failed to download " + _modelURL.toString());
     }
 }
 
