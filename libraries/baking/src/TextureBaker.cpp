@@ -55,6 +55,7 @@ TextureBaker::TextureBaker(const QUrl& textureURL, image::TextureUsage::Type tex
         originalExtension = textureFilename.mid(extensionStart);
     }
     _originalCopyFilePath = _outputDirectory.absoluteFilePath(_baseFilename + originalExtension);
+    _metaTextureFileName = _outputDirectory.absoluteFilePath(_baseFilename + BAKED_META_TEXTURE_SUFFIX);
 }
 
 void TextureBaker::bake() {
@@ -66,7 +67,7 @@ void TextureBaker::bake() {
         loadTexture();
     } else {
         // we already have a texture passed to us, use that
-        emit originalTextureLoaded();
+        processTexture();
     }
 }
 
@@ -128,14 +129,35 @@ void TextureBaker::handleTextureNetworkReply() {
     }
 }
 
+void TextureBaker::onOriginalTextureEnded() {
+    for (auto& warning : _originalTextureBaker->getWarnings()) {
+        _warningList.push_back(warning);
+    }
+    for (auto& error : _originalTextureBaker->getErrors()) {
+        _errorList.push_back(error);
+    }
+}
+
+void TextureBaker::onOriginalTextureAborted() {
+    onOriginalTextureEnded();
+    setWasAborted(true);
+}
+
+void TextureBaker::onOriginalTextureFinished() {
+    onOriginalTextureEnded();
+    setIsFinished(true);
+}
+
 void TextureBaker::processTexture() {
-    // the baked textures need to have the source hash added for cache checks in Interface
-    // so we add that to the processed texture before handling it off to be serialized
-    auto hashData = QCryptographicHash::hash(_originalTexture, QCryptographicHash::Md5);
-    std::string hash = hashData.toHex().toStdString();
+    if (_textureURL.toString().endsWith(BAKED_META_TEXTURE_SUFFIX)) {
+        // This is a baked texture. Search for the original texture file and use that for baking.
+        processMetaTexture();
+    } else {
+        processImageTexture();
+    }
+}
 
-    TextureMeta meta;
-
+void TextureBaker::processImageTexture() {
     QString originalCopyFilePath = _originalCopyFilePath.toString();
 
     // Copy the original file into the baked output directory if it doesn't exist yet
@@ -145,11 +167,19 @@ void TextureBaker::processTexture() {
             handleError("Could not write original texture for " + _textureURL.toString());
             return;
         }
-        // IMPORTANT: _originalTexture is empty past this point
-        _originalTexture.clear();
         _outputFiles.push_back(originalCopyFilePath);
-        meta.original = _metaTexturePathPrefix + _originalCopyFilePath.fileName();
     }
+
+    // the baked textures need to have the source hash added for cache checks in Interface
+    // so we add that to the processed texture before handling it off to be serialized
+    auto hashData = QCryptographicHash::hash(_originalTexture, QCryptographicHash::Md5);
+    std::string hash = hashData.toHex().toStdString();
+
+    TextureMeta meta;
+
+    // IMPORTANT: _originalTexture is empty past this point
+    _originalTexture.clear();
+    meta.original = _metaTexturePathPrefix + _originalCopyFilePath.fileName();
 
     // Load the copy of the original file from the baked output directory. New images will be created using the original as the source data.
     auto buffer = std::static_pointer_cast<QIODevice>(std::make_shared<QFile>(originalCopyFilePath));
@@ -244,7 +274,6 @@ void TextureBaker::processTexture() {
 
     {
         auto data = meta.serialize();
-        _metaTextureFileName = _outputDirectory.absoluteFilePath(_baseFilename + BAKED_META_TEXTURE_SUFFIX);
         QFile file { _metaTextureFileName };
         if (!file.open(QIODevice::WriteOnly) || file.write(data) == -1) {
             handleError("Could not write meta texture for " + _textureURL.toString());
@@ -255,6 +284,27 @@ void TextureBaker::processTexture() {
 
     qCDebug(model_baking) << "Baked texture" << _textureURL;
     setIsFinished(true);
+}
+
+void TextureBaker::processMetaTexture() {
+    TextureMeta meta;
+    if (!TextureMeta::deserialize(_originalTexture, &meta)) {
+        handleError("Error occurred when parsing texture meta '" + _textureURL.toString() + "'");
+        return;
+    }
+    auto originalTextureURL = meta.original;
+
+    if (originalTextureURL.isEmpty()) {
+        handleError("Could not find the original URL to bake for texture meta '" + _textureURL.toString() + "'");
+        return;
+    }
+    originalTextureURL = _textureURL.resolved(QUrl(".")).resolved(originalTextureURL);
+
+    _originalTextureBaker = std::unique_ptr<TextureBaker>(new TextureBaker(originalTextureURL, _textureType, _outputDirectory, _metaTexturePathPrefix, _baseFilename, QByteArray()));
+    connect(_originalTextureBaker.get(), &TextureBaker::aborted, this, &TextureBaker::onOriginalTextureAborted);
+    connect(_originalTextureBaker.get(), &TextureBaker::finished, this, &TextureBaker::onOriginalTextureFinished);
+    // Nothing to do, bake on same thread
+    _originalTextureBaker->bake();
 }
 
 void TextureBaker::setWasAborted(bool wasAborted) {

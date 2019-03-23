@@ -115,7 +115,7 @@ void MaterialBaker::processMaterial() {
                     auto idx = cleanURL.lastIndexOf('.');
                     auto extension = idx >= 0 ? url.toDisplayString().mid(idx + 1).toLower() : "";
 
-                    if (QImageReader::supportedImageFormats().contains(extension.toLatin1())) {
+                    if (QImageReader::supportedImageFormats().contains(extension.toLatin1()) || url.fileName().endsWith(TEXTURE_META_EXTENSION)) {
                         QUrl textureURL = url.adjusted(QUrl::RemoveQuery | QUrl::RemoveFragment);
 
                         // FIXME: this isn't properly handling bumpMaps or glossMaps

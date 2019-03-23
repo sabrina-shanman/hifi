@@ -194,7 +194,7 @@ void DomainBaker::addTextureBaker(const QString& property, const QString& url, i
     auto idx = cleanURL.lastIndexOf('.');
     auto extension = idx >= 0 ? url.mid(idx + 1).toLower() : "";
 
-    if (QImageReader::supportedImageFormats().contains(extension.toLatin1())) {
+    if (QImageReader::supportedImageFormats().contains(extension.toLatin1()) || (cleanURL.endsWith(TEXTURE_META_EXTENSION) && _shouldRebakeOriginals)) {
         // grab a clean version of the URL without a query or fragment
         QUrl textureURL = QUrl(url).adjusted(QUrl::RemoveQuery | QUrl::RemoveFragment);
 

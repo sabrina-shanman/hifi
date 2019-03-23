@@ -198,6 +198,9 @@ public:
     void setGPUContext(const gpu::ContextPointer& context) { _gpuContext = context; }
     gpu::ContextPointer getGPUContext() const { return _gpuContext; }
 
+    bool isRuntime() const { return _isRuntime; }
+    void setRuntime(bool isRuntime) { _isRuntime = isRuntime; }
+
 signals:
     void spectatorCameraFramebufferReset();
 
@@ -208,6 +211,8 @@ protected:
 
     virtual QSharedPointer<Resource> createResource(const QUrl& url) override;
     QSharedPointer<Resource> createResourceCopy(const QSharedPointer<Resource>& resource) override;
+
+    bool _isRuntime { true };
 
 private:
     friend class ImageReader;

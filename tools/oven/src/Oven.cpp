@@ -41,7 +41,10 @@ Oven::Oven() {
     DependencyManager::set<ResourceManager>(false);
     DependencyManager::set<ResourceRequestObserver>();
     DependencyManager::set<ResourceCacheSharedItems>();
-    DependencyManager::set<TextureCache>();
+    {
+        auto textureCache = DependencyManager::set<TextureCache>();
+        textureCache->setRuntime(false);
+    }
 
     MaterialBaker::setNextOvenWorkerThreadOperator([] {
         return Oven::instance().getNextWorkerThread();

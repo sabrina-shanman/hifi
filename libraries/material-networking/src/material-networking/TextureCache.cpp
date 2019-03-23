@@ -1036,12 +1036,15 @@ void NetworkTexture::loadMetaContent(const QByteArray& content) {
         return;
     }
 
-    auto& backend = DependencyManager::get<TextureCache>()->getGPUContext()->getBackend();
+    auto textureCache = DependencyManager::get<TextureCache>();
+    bool isRuntime = textureCache->isRuntime();
+    const gpu::BackendPointer backend = !isRuntime ? nullptr : textureCache->getGPUContext()->getBackend();
+
     for (auto pair : meta.availableTextureTypes) {
         gpu::Element elFormat;
 
         if (gpu::Texture::getCompressedFormat(pair.first, elFormat)) {
-            if (backend->supportedTextureFormat(elFormat)) {
+            if (!isRuntime || backend->supportedTextureFormat(elFormat)) {
                 auto url = pair.second;
                 if (url.fileName().endsWith(TEXTURE_META_EXTENSION)) {
                     continue;
@@ -1049,7 +1052,6 @@ void NetworkTexture::loadMetaContent(const QByteArray& content) {
 
                 _currentlyLoadingResourceType = ResourceType::KTX;
                 _activeUrl = _activeUrl.resolved(url);
-                auto textureCache = DependencyManager::get<TextureCache>();
                 auto self = _self.lock();
                 if (!self) {
                     return;

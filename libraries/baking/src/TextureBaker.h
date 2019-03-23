@@ -58,12 +58,20 @@ public slots:
 signals:
     void originalTextureLoaded();
 
+protected:
+    std::unique_ptr<TextureBaker> _originalTextureBaker;
+
 private slots:
     void processTexture();
+    void onOriginalTextureAborted();
+    void onOriginalTextureFinished();
 
 private:
     void loadTexture();
     void handleTextureNetworkReply();
+    void processImageTexture();
+    void processMetaTexture();
+    void onOriginalTextureEnded();
 
     QUrl _textureURL;
     QByteArray _originalTexture;
