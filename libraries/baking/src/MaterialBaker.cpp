@@ -154,7 +154,6 @@ void MaterialBaker::processMaterial() {
                             textureBaker->moveToThread(_getNextOvenWorkerThreadOperator ? _getNextOvenWorkerThreadOperator() : thread());
                             QMetaObject::invokeMethod(textureBaker.data(), "bake");
                         }
-                        _materialsNeedingRewrite.insert(textureKey, networkMaterial.second);
                     } else {
                         qCDebug(material_baking) << "Texture extension not supported: " << extension;
                     }
@@ -180,17 +179,14 @@ void MaterialBaker::handleFinishedTextureBaker() {
             auto newURL = QUrl(_textureOutputDir).resolved(baker->getMetaTextureFileName());
             auto relativeURL = QDir(_bakedOutputDir).relativeFilePath(newURL.toString());
 
-            // Replace the old texture URLs
-            for (auto networkMaterial : _materialsNeedingRewrite.values(textureKey)) {
-                networkMaterial->getTextureMap(baker->getMapChannel())->getTextureSource()->setUrl(_destinationPath.resolved(relativeURL));
-            }
+            // Queue old texture URLs to be replaced
+            _materialRewrites[textureKey] = _destinationPath.resolved(relativeURL);
         } else {
             // this texture failed to bake - this doesn't fail the entire bake but we need to add the errors from
             // the texture to our warnings
             _warningList << baker->getWarnings();
         }
 
-        _materialsNeedingRewrite.remove(textureKey);
         _textureBakers.remove(textureKey);
 
         if (_textureBakers.empty()) {
@@ -201,19 +197,47 @@ void MaterialBaker::handleFinishedTextureBaker() {
     }
 }
 
+scriptable::ScriptableMaterial getRemappedMaterial(const std::shared_ptr<NetworkMaterial>& networkMaterial, const QHash<QPair<QUrl, image::TextureUsage::Type>, QUrl>& materialRewrites) {
+    scriptable::ScriptableMaterial remappedMaterial { networkMaterial };
+
+    const static auto remapMaterial = [](const QHash<QPair<QUrl, image::TextureUsage::Type>, QUrl>& materialRewrites, QString& materialMap, image::TextureUsage::Type textureType) {
+        if (!materialMap.isEmpty()) {
+            const auto rewriteIt = materialRewrites.constFind({ materialMap, textureType });
+            if (rewriteIt != materialRewrites.cend()) {
+                materialMap = (*rewriteIt).toString();
+            }
+        }
+    };
+
+    remapMaterial(materialRewrites, remappedMaterial.emissiveMap, image::TextureUsage::EMISSIVE_TEXTURE);
+    remapMaterial(materialRewrites, remappedMaterial.albedoMap, image::TextureUsage::ALBEDO_TEXTURE);
+    remapMaterial(materialRewrites, remappedMaterial.opacityMap, image::TextureUsage::OPACITY_TEXTURE);
+    remapMaterial(materialRewrites, remappedMaterial.metallicMap, image::TextureUsage::METALLIC_TEXTURE);
+    remapMaterial(materialRewrites, remappedMaterial.specularMap, image::TextureUsage::SPECULAR_TEXTURE);
+    remapMaterial(materialRewrites, remappedMaterial.roughnessMap, image::TextureUsage::ROUGHNESS_TEXTURE);
+    remapMaterial(materialRewrites, remappedMaterial.glossMap, image::TextureUsage::GLOSS_TEXTURE);
+    remapMaterial(materialRewrites, remappedMaterial.normalMap, image::TextureUsage::NORMAL_TEXTURE);
+    remapMaterial(materialRewrites, remappedMaterial.bumpMap, image::TextureUsage::BUMP_TEXTURE);
+    remapMaterial(materialRewrites, remappedMaterial.occlusionMap, image::TextureUsage::OCCLUSION_TEXTURE);
+    remapMaterial(materialRewrites, remappedMaterial.lightmapMap, image::TextureUsage::LIGHTMAP_TEXTURE);
+    remapMaterial(materialRewrites, remappedMaterial.scatteringMap, image::TextureUsage::SCATTERING_TEXTURE);
+
+    return remappedMaterial;
+}
+
 void MaterialBaker::outputMaterial() {
     if (_materialResource) {
         QJsonObject json;
         if (_materialResource->parsedMaterials.networkMaterials.size() == 1) {
             auto networkMaterial = _materialResource->parsedMaterials.networkMaterials.begin();
-            auto scriptableMaterial = scriptable::ScriptableMaterial(networkMaterial->second);
-            QVariant materialVariant = scriptable::scriptableMaterialToScriptValue(&_scriptEngine, scriptableMaterial).toVariant();
+            auto remappedMaterial = getRemappedMaterial(networkMaterial->second, _materialRewrites);
+            QVariant materialVariant = scriptable::scriptableMaterialToScriptValue(&_scriptEngine, remappedMaterial).toVariant();
             json.insert("materials", QJsonDocument::fromVariant(materialVariant).object());
         } else {
             QJsonArray materialArray;
             for (auto networkMaterial : _materialResource->parsedMaterials.networkMaterials) {
-                auto scriptableMaterial = scriptable::ScriptableMaterial(networkMaterial.second);
-                QVariant materialVariant = scriptable::scriptableMaterialToScriptValue(&_scriptEngine, scriptableMaterial).toVariant();
+                auto remappedMaterial = getRemappedMaterial(networkMaterial.second, _materialRewrites);
+                QVariant materialVariant = scriptable::scriptableMaterialToScriptValue(&_scriptEngine, remappedMaterial).toVariant();
                 materialArray.append(QJsonDocument::fromVariant(materialVariant).object());
             }
             json.insert("materials", materialArray);

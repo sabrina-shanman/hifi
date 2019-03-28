@@ -12,12 +12,12 @@
 #ifndef hifi_MaterialBaker_h
 #define hifi_MaterialBaker_h
 
+#include <material-networking/MaterialCache.h>
+
 #include "Baker.h"
 
 #include "TextureBaker.h"
 #include "baking/TextureFileNamer.h"
-
-#include <material-networking/MaterialCache.h>
 
 static const QString BAKED_MATERIAL_EXTENSION = ".baked.json";
 
@@ -52,7 +52,7 @@ private:
     NetworkMaterialResourcePointer _materialResource;
 
     QHash<QPair<QUrl, image::TextureUsage::Type>, QSharedPointer<TextureBaker>> _textureBakers;
-    QMultiHash<QPair<QUrl, image::TextureUsage::Type>, std::shared_ptr<NetworkMaterial>> _materialsNeedingRewrite;
+    QHash<QPair<QUrl, image::TextureUsage::Type>, QUrl> _materialRewrites;
 
     QString _bakedOutputDir;
     QString _textureOutputDir;
