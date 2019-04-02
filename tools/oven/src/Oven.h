@@ -12,7 +12,7 @@
 #ifndef hifi_Oven_h
 #define hifi_Oven_h
 
-#include <atomic>
+#include <mutex>
 #include <memory>
 #include <vector>
 
@@ -34,7 +34,8 @@ private:
 
     std::vector<std::unique_ptr<QThread>> _workerThreads;
 
-    std::atomic<uint32_t> _nextWorkerThreadIndex;
+    std::mutex _workerThreadLock;
+    uint32_t _nextWorkerThreadIndex;
     int _numWorkerThreads;
 
     static Oven* _staticInstance;

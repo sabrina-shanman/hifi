@@ -85,6 +85,8 @@ void Oven::setupWorkerThreads(int numWorkerThreads) {
 }
 
 QThread* Oven::getNextWorkerThread() {
+    std::lock_guard<std::mutex> lock(_workerThreadLock);
+
     // FIXME: we assign these threads when we make the bakers, but if certain bakers finish quickly, we could end up
     // in a situation where threads have finished and others have tons of work queued.  Instead of assigning them at initialization,
     // we should build a queue of bakers, and when threads finish, they can take the next available baker.
