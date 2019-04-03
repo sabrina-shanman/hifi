@@ -15,9 +15,17 @@ QString TextureFileNamer::createBaseTextureFileName(const QFileInfo& textureFile
     // If two textures have the same URL but are used differently, we need to process them separately
     QString addMapChannel = QString::fromStdString("_" + std::to_string(textureType));
 
-    QString baseTextureFileName{ textureFileInfo.baseName() + addMapChannel };
+    // Detect if we are working with a rebaked file, and if so, remove the extra stuff we added at the end of the filename the last time we did this
+    QString baseTextureFileName;
+    QString fileInfoBase = textureFileInfo.baseName();
+    int fileNamerSuffix = fileInfoBase.indexOf(QRegExp(addMapChannel + "(-\\d+)?$"));
+    if (fileNamerSuffix == -1 || fileNamerSuffix == 0) {
+        baseTextureFileName = fileInfoBase + addMapChannel;
+    } else {
+        baseTextureFileName = fileInfoBase.left(fileNamerSuffix) + addMapChannel;
+    }
 
-    // first make sure we have a unique base name for this texture
+    // make sure we have a unique base name for this texture
     // in case another texture referenced by this model has the same base name
     auto& nameMatches = _textureNameMatchCount[baseTextureFileName];
 

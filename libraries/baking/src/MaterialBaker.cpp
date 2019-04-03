@@ -251,7 +251,12 @@ void MaterialBaker::outputMaterial() {
         QByteArray outputMaterial = QJsonDocument(json).toJson(QJsonDocument::Compact);
         if (_isURL) {
             auto fileName = QUrl(_materialData).fileName();
-            auto baseName = fileName.left(fileName.lastIndexOf('.'));
+            QString baseName;
+            if (fileName.endsWith(BAKED_MATERIAL_EXTENSION)) {
+                baseName = fileName.left(fileName.lastIndexOf(BAKED_MATERIAL_EXTENSION));
+            } else {
+                baseName = fileName.left(fileName.lastIndexOf('.'));
+            }
             auto bakedFilename = baseName + BAKED_MATERIAL_EXTENSION;
 
             _bakedMaterialData = _bakedOutputDir + "/" + bakedFilename;

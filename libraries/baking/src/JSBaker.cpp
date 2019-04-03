@@ -104,7 +104,12 @@ void JSBaker::processScript() {
 
     // Bake Successful. Export the file
     auto fileName = _jsURL.fileName();
-    auto baseName = fileName.left(fileName.lastIndexOf('.'));
+    QString baseName;
+    if (fileName.endsWith(BAKED_JS_EXTENSION)) {
+        baseName = fileName.left(fileName.indexOf(BAKED_JS_EXTENSION));
+    } else {
+        baseName = fileName.left(fileName.lastIndexOf('.'));
+    }
     auto bakedFilename = baseName + BAKED_JS_EXTENSION;
 
     _bakedJSFilePath = _bakedOutputDir + "/" + bakedFilename;

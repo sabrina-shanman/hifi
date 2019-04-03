@@ -45,7 +45,11 @@ TextureBaker::TextureBaker(const QUrl& textureURL, image::TextureUsage::Type tex
     if (baseFilename.isEmpty()) {
         // figure out the baked texture filename
         auto originalFilename = textureURL.fileName();
-        _baseFilename = originalFilename.left(originalFilename.lastIndexOf('.'));
+        if (originalFilename.endsWith(BAKED_META_TEXTURE_SUFFIX)) {
+            _baseFilename = originalFilename.left(originalFilename.lastIndexOf(BAKED_META_TEXTURE_SUFFIX));
+        } else {
+            _baseFilename = originalFilename.left(originalFilename.lastIndexOf('.'));
+        }
     }
 
     auto textureFilename = _textureURL.fileName();
