@@ -233,6 +233,10 @@ void DomainBaker::addScriptBaker(const QString& property, const QString& url, co
     // grab a clean version of the URL without a query or fragment
     QUrl scriptURL = QUrl(url).adjusted(QUrl::RemoveQuery | QUrl::RemoveFragment);
 
+    if (scriptURL.fileName().endsWith(BAKED_JS_EXTENSION) && !_shouldRebakeOriginals) {
+        return;
+    }
+
     // setup a script baker for this URL, as long as we aren't baking a script already
     if (!_scriptBakers.contains(scriptURL)) {
 
@@ -270,12 +274,17 @@ void DomainBaker::addMaterialBaker(const QString& property, const QString& data,
         materialData = data;
     }
 
+    if ((isURL && materialData.endsWith(BAKED_MATERIAL_EXTENSION)) && !_shouldRebakeOriginals) {
+        // This material URL is already baked
+        return;
+    }
+
     // setup a material baker for this URL, as long as we aren't baking a material already
     if (!_materialBakers.contains(materialData)) {
 
         // setup a baker for this material
         QSharedPointer<MaterialBaker> materialBaker {
-            new MaterialBaker(data, isURL, _contentOutputPath, _destinationPath),
+            new MaterialBaker(data, isURL, _contentOutputPath, _destinationPath, _shouldRebakeOriginals),
             &MaterialBaker::deleteLater
         };
 

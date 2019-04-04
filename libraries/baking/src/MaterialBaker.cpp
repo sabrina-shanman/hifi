@@ -36,12 +36,13 @@ namespace std {
     };
 };
 
-MaterialBaker::MaterialBaker(const QString& materialData, bool isURL, const QString& bakedOutputDir, const QUrl& destinationPath) :
+MaterialBaker::MaterialBaker(const QString& materialData, bool isURL, const QString& bakedOutputDir, const QUrl& destinationPath, bool rebakeOriginals) :
     _materialData(materialData),
     _isURL(isURL),
     _bakedOutputDir(bakedOutputDir),
     _textureOutputDir(bakedOutputDir + "/materialTextures/" + QString::number(materialNum++)),
-    _destinationPath(destinationPath)
+    _destinationPath(destinationPath),
+    _rebakeOriginals(rebakeOriginals)
 {
 }
 
@@ -115,7 +116,7 @@ void MaterialBaker::processMaterial() {
                     auto idx = cleanURL.lastIndexOf('.');
                     auto extension = idx >= 0 ? url.toDisplayString().mid(idx + 1).toLower() : "";
 
-                    if (QImageReader::supportedImageFormats().contains(extension.toLatin1()) || url.fileName().endsWith(TEXTURE_META_EXTENSION)) {
+                    if (QImageReader::supportedImageFormats().contains(extension.toLatin1()) || (_rebakeOriginals && url.fileName().endsWith(TEXTURE_META_EXTENSION))) {
                         QUrl textureURL = url.adjusted(QUrl::RemoveQuery | QUrl::RemoveFragment);
 
                         // FIXME: this isn't properly handling bumpMaps or glossMaps

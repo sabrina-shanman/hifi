@@ -24,7 +24,7 @@ static const QString BAKED_MATERIAL_EXTENSION = ".baked.json";
 class MaterialBaker : public Baker {
     Q_OBJECT
 public:
-    MaterialBaker(const QString& materialData, bool isURL, const QString& bakedOutputDir, const QUrl& destinationPath);
+    MaterialBaker(const QString& materialData, bool isURL, const QString& bakedOutputDir, const QUrl& destinationPath, bool rebakeOriginals);
 
     QString getMaterialData() const { return _materialData; }
     bool isURL() const { return _isURL; }
@@ -48,6 +48,7 @@ private:
 
     QString _materialData;
     bool _isURL;
+    bool _rebakeOriginals;
 
     NetworkMaterialResourcePointer _materialResource;
 
