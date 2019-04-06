@@ -23,16 +23,15 @@ public:
 
     virtual QUrl getFullOutputMappingURL() const override;
 
-signals:
-    void fstLoaded();
-
 public slots:
     virtual void abort() override;
     
 protected:
+    QUrl _originalMappingURL;
     std::unique_ptr<ModelBaker> _modelBaker;
 
 protected slots:
+    virtual void handleModelNotFound() override;
     virtual void bakeSourceCopy() override;
     virtual void bakeProcessedSource(const hfm::Model::Pointer& hfmModel, const std::vector<hifi::ByteArray>& dracoMeshes, const std::vector<std::vector<hifi::ByteArray>>& dracoMaterialLists) override {};
     void handleModelBakerAborted();

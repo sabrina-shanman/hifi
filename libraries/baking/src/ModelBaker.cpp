@@ -137,13 +137,14 @@ void ModelBaker::saveSourceModel() {
         // load up the local file
         QFile localModelURL { _modelURL.toLocalFile() };
 
-        qDebug() << "Local file url: " << _modelURL << _modelURL.toString() << _modelURL.toLocalFile() << ", copying to: " << _originalOutputModelPath;
+        qDebug() << "Checking if local file url" << _modelURL << "exists";
 
         if (!localModelURL.exists()) {
-            //QMessageBox::warning(this, "Could not find " + _modelURL.toString(), "");
-            handleError("Could not find " + _modelURL.toString());
+            handleModelNotFound();
             return;
         }
+
+        qDebug() << "Local file url: " << _modelURL << _modelURL.toString() << _modelURL.toLocalFile() << ", copying to: " << _originalOutputModelPath;
 
         localModelURL.copy(_originalOutputModelPath);
 
@@ -195,10 +196,16 @@ void ModelBaker::handleModelNetworkReply() {
 
         // emit our signal to start the import of the model source copy
         emit modelLoaded();
-    } else {
+    } else if (requestReply->error() == QNetworkReply::ContentNotFoundError) {
+        handleModelNotFound();
+    } else{
         // add an error to our list stating that the model could not be downloaded
         handleError("Failed to download " + _modelURL.toString());
     }
+}
+
+void ModelBaker::handleModelNotFound() {
+    handleError("Could not find " + _modelURL.toString());
 }
 
 void ModelBaker::bakeSourceCopy() {

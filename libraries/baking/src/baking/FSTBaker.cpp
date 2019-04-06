@@ -20,14 +20,17 @@
 
 FSTBaker::FSTBaker(const QUrl& inputMappingURL, TextureBakerThreadGetter inputTextureThreadGetter,
         const QString& bakedOutputDirectory, const QString& originalOutputDirectory, bool hasBeenBaked) :
+        _originalMappingURL(inputMappingURL),
         ModelBaker(inputMappingURL, inputTextureThreadGetter, bakedOutputDirectory, originalOutputDirectory, hasBeenBaked) {
     if (hasBeenBaked) {
-        // Look for the original model file one directory higher. Perhaps this is an oven output directory.
-        QUrl originalRelativePath = QUrl("../original/" + inputMappingURL.fileName().replace(BAKED_FST_EXTENSION, FST_EXTENSION));
-        QUrl newInputMappingURL = inputMappingURL.adjusted(QUrl::RemoveFilename).resolved(originalRelativePath);
-        _modelURL = newInputMappingURL;
+        // Look for the FST file in the oven output directory
+        // We don't know if we are rebaking a rebaked FST, rebaking the original FST, or rebaking a model
+        // Assume the first one, and if we fail, we will try something else
+        QUrl originalRelativePath = QUrl("../original/" + inputMappingURL.fileName());
+        QUrl newInputURL = inputMappingURL.adjusted(QUrl::RemoveFilename).resolved(originalRelativePath);
+        _modelURL = newInputURL;
     }
-    _mappingURL = _modelURL;
+    _mappingURL = inputMappingURL;
 
     {
         // Unused, but defined for consistency
@@ -44,6 +47,63 @@ QUrl FSTBaker::getFullOutputMappingURL() const {
     return QUrl();
 }
 
+void FSTBaker::handleModelNotFound() {
+    if (_hasBeenBaked) {
+        if (_modelURL.toString().endsWith(BAKED_FST_EXTENSION)) {
+            auto oldModelURL = _modelURL;
+            auto newPath = _modelURL.path();
+            newPath = newPath.left(newPath.lastIndexOf(BAKED_FST_EXTENSION)) + FST_EXTENSION;
+            _modelURL.setPath(newPath);
+            _mappingURL = _modelURL;
+            qCDebug(model_baking) << "Could not find" << oldModelURL << ", attempting" << _modelURL;
+            saveSourceModel();
+        } else if (_modelURL.toString().endsWith(FST_EXTENSION)) {
+            auto oldModelURL = _modelURL;
+            
+            // Use the model name in the baked FST file to guess the original model URL
+            // TODO: Support non-local files. Also, we really need to start using the ModelCache. -Sabrina 2019/04/05
+            if (!_originalMappingURL.isLocalFile()) {
+                
+
+
+            }
+
+            QFile fstFile(_originalMappingURL.toLocalFile());
+            if (!fstFile.open(QIODevice::ReadOnly)) {
+                handleError("Error opening baked FST " + _originalMappingURL.toString() + " for reading");
+                return;
+            }
+
+            hifi::ByteArray fstData = fstFile.readAll();
+            auto bakedMapping = FSTReader::readMapping(fstData);
+
+            auto filenameField = bakedMapping[FILENAME_FIELD].toString();
+            if (filenameField.isEmpty()) {
+                handleError("The '" + FILENAME_FIELD + "' property in the baked FST file '" + fstFile.fileName() + "' could not be found");
+                return;
+            }
+
+            QUrl originalRelativePath = QUrl("../original/" + filenameField);
+            _modelURL = _originalMappingURL.adjusted(QUrl::RemoveFilename).resolved(originalRelativePath);
+            _mappingURL = "";
+            qCDebug(model_baking) << "Could not find" << oldModelURL << ", attempting" << _modelURL;
+            saveSourceModel();
+        } else if (_modelURL.toString().endsWith(BAKED_FBX_EXTENSION)) {
+            auto oldModelURL = _modelURL;
+            auto newPath = _modelURL.path();
+            newPath = newPath.left(newPath.lastIndexOf(BAKED_FBX_EXTENSION)) + FBX_EXTENSION;
+            _modelURL.setPath(newPath);
+            _mappingURL = "";
+            qCDebug(model_baking) << "Could not find" << oldModelURL << ", attempting" << _modelURL;
+            saveSourceModel();
+        } else {
+            ModelBaker::handleModelNotFound();
+        }
+    } else {
+        ModelBaker::handleModelNotFound();
+    }
+}
+
 void FSTBaker::bakeSourceCopy() {
     if (shouldStop()) {
         return;
@@ -57,6 +117,8 @@ void FSTBaker::bakeSourceCopy() {
     
     hifi::ByteArray fstData = fstFile.readAll();
     _mapping = FSTReader::readMapping(fstData);
+    
+    // TODO: Handle baked FST
 
     auto filenameField = _mapping[FILENAME_FIELD].toString();
     if (filenameField.isEmpty()) {

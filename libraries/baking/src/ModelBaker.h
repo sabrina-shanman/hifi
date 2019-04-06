@@ -69,13 +69,14 @@ public slots:
     virtual void abort() override;
 
 protected:
-    void saveSourceModel();
+    virtual void saveSourceModel();
     virtual void bakeProcessedSource(const hfm::Model::Pointer& hfmModel, const std::vector<hifi::ByteArray>& dracoMeshes, const std::vector<std::vector<hifi::ByteArray>>& dracoMaterialLists) = 0;
     void checkIfTexturesFinished();
     void texturesFinished();
     void embedTextureMetaData();
     void exportScene();
 
+    bool _hasBeenBaked { false };
     FBXNode _rootNode;
     QHash<QByteArray, QByteArray> _textureContentMap;
     QUrl _modelURL;
@@ -91,6 +92,7 @@ protected:
 
 protected slots:
     void handleModelNetworkReply();
+    virtual void handleModelNotFound();
     virtual void bakeSourceCopy();
 
 private slots:
@@ -105,8 +107,6 @@ private:
     QMultiHash<TextureKey, QSharedPointer<TextureBaker>> _bakingTextures;
     QHash<QString, int> _textureNameMatchCount;
     bool _pendingErrorEmission { false };
-
-    bool _hasBeenBaked { false };
 
     TextureFileNamer _textureFileNamer;
 };
