@@ -177,7 +177,12 @@ void MaterialBaker::handleFinishedTextureBaker() {
             auto relativeURL = QDir(_bakedOutputDir).relativeFilePath(newURL.toString());
 
             // Queue old texture URLs to be replaced
-            _materialRewrites[textureKey] = _destinationPath.resolved(relativeURL);
+            if (!_isURL) {
+                // Absolute paths are needed for embedded textures
+                _materialRewrites[textureKey] = _destinationPath.resolved(relativeURL);
+            } else {
+                _materialRewrites[textureKey] = relativeURL;
+            }
         } else {
             // this texture failed to bake - this doesn't fail the entire bake but we need to add the errors from
             // the texture to our warnings
