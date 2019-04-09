@@ -30,10 +30,13 @@ public:
     bool isURL() const { return _isURL; }
     QString getBakedMaterialData() const { return _bakedMaterialData; }
 
+    void setMaterials(const QHash<QString, hfm::Material>& materials, const QString& baseURL);
+
     static void setNextOvenWorkerThreadOperator(std::function<QThread*()> getNextOvenWorkerThreadOperator) { _getNextOvenWorkerThreadOperator = getNextOvenWorkerThreadOperator; }
 
 public slots:
     virtual void bake() override;
+    virtual void abort() override;
 
 signals:
     void originalMaterialLoaded();
@@ -63,6 +66,14 @@ private:
     QScriptEngine _scriptEngine;
     static std::function<QThread*()> _getNextOvenWorkerThreadOperator;
     TextureFileNamer _textureFileNamer;
+
+    void addTexture(const QString& materialName, image::TextureUsage::Type textureUsage, const hfm::Texture& texture);
+    struct TextureUsageHash {
+        std::size_t operator()(image::TextureUsage::Type textureUsage) const {
+            return static_cast<std::size_t>(textureUsage);
+        }
+    };
+    std::unordered_map<std::string, std::unordered_map<image::TextureUsage::Type, std::pair<QByteArray, QString>, TextureUsageHash>> _textureContentMap;
 };
 
 #endif // !hifi_MaterialBaker_h

@@ -120,19 +120,21 @@ void GeometryMappingResource::downloadFinished(const QByteArray& data) {
     if (filename.isNull()) {
         finishedLoading(false);
     } else {
-        QUrl url = _url.resolved(filename);
+        const QString baseURL = _mapping.value("baseURL").toString();
+        const QUrl base = _effectiveBaseURL.resolved(baseURL);
+        QUrl url = base.resolved(filename);
 
         QString texdir = _mapping.value(TEXDIR_FIELD).toString();
         if (!texdir.isNull()) {
             if (!texdir.endsWith('/')) {
                 texdir += '/';
             }
-            _textureBaseUrl = resolveTextureBaseUrl(url, _url.resolved(texdir));
+            _textureBaseUrl = resolveTextureBaseUrl(url, base.resolved(texdir));
         } else {
             _textureBaseUrl = url.resolved(QUrl("."));
         }
 
-        auto scripts = FSTReader::getScripts(_url, _mapping);
+        auto scripts = FSTReader::getScripts(base, _mapping);
         if (scripts.size() > 0) {
             _mapping.remove(SCRIPT_FIELD);
             for (auto &scriptPath : scripts) {
@@ -145,7 +147,7 @@ void GeometryMappingResource::downloadFinished(const QByteArray& data) {
         if (animGraphVariant.isValid()) {
             QUrl fstUrl(animGraphVariant.toString());
             if (fstUrl.isValid()) {
-                _animGraphOverrideUrl = _url.resolved(fstUrl);
+                _animGraphOverrideUrl = base.resolved(fstUrl);
             } else {
                 _animGraphOverrideUrl = QUrl();
             }
@@ -154,7 +156,7 @@ void GeometryMappingResource::downloadFinished(const QByteArray& data) {
         }
 
         auto modelCache = DependencyManager::get<ModelCache>();
-        GeometryExtra extra { GeometryMappingPair(_url, _mapping), _textureBaseUrl, false };
+        GeometryExtra extra { GeometryMappingPair(base, _mapping), _textureBaseUrl, false };
 
         // Get the raw GeometryResource
         _geometryResource = modelCache->getResource(url, QUrl(), &extra, std::hash<GeometryExtra>()(extra)).staticCast<GeometryResource>();
@@ -435,8 +437,8 @@ const QVariantMap Geometry::getTextures() const {
     QVariantMap textures;
     for (const auto& material : _materials) {
         for (const auto& texture : material->_textures) {
-            if (texture.texture) {
-                textures[texture.name] = texture.texture->getURL();
+            if (texture.second.texture) {
+                textures[texture.second.name] = texture.second.texture->getURL();
             }
         }
     }
@@ -465,7 +467,7 @@ void Geometry::setTextures(const QVariantMap& textureMap) {
         for (auto& material : _materials) {
             // Check if any material textures actually changed
             if (std::any_of(material->_textures.cbegin(), material->_textures.cend(),
-                [&textureMap](const NetworkMaterial::Textures::value_type& it) { return it.texture && textureMap.contains(it.name); })) { 
+                [&textureMap](const NetworkMaterial::Textures::value_type& it) { return it.second.texture && textureMap.contains(it.second.name); })) {
 
                 // FIXME: The Model currently caches the materials (waste of space!)
                 //        so they must be copied in the Geometry copy-ctor

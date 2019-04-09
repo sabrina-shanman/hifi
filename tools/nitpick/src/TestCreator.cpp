@@ -67,7 +67,7 @@ QString TestCreator::zipAndDeleteTestResultsFolder() {
     return zippedResultsFileName;
 }
 
-int TestCreator::compareImageLists() {
+int TestCreator::compareImageLists(const QString& gpuVendor) {
     _progressBar->setMinimum(0);
     _progressBar->setMaximum(_expectedImagesFullFilenames.length() - 1);
     _progressBar->setValue(0);
@@ -83,6 +83,7 @@ int TestCreator::compareImageLists() {
         QImage expectedImage(_expectedImagesFullFilenames[i]);
 
         double similarityIndex;  // in [-1.0 .. 1.0], where 1.0 means images are identical
+        double worstTileValue;   // in [-1.0 .. 1.0], where 1.0 means images are identical
 
         bool isInteractiveMode = (!_isRunningFromCommandLine && _checkBoxInteractiveMode->isChecked() && !_isRunningInAutomaticTestRun);
                                  
@@ -90,13 +91,16 @@ int TestCreator::compareImageLists() {
         if (isInteractiveMode && (resultImage.width() != expectedImage.width() || resultImage.height() != expectedImage.height())) {
             QMessageBox::critical(0, "Internal error: " + QString(__FILE__) + ":" + QString::number(__LINE__), "Images are not the same size");
             similarityIndex = -100.0;
+            worstTileValue = 0.0;
         } else {
             _imageComparer.compareImages(resultImage, expectedImage);
             similarityIndex = _imageComparer.getSSIMValue();
+            worstTileValue = _imageComparer.getWorstTileValue();
         }
 
         TestResult testResult = TestResult{
-            (float)similarityIndex,
+            similarityIndex,
+            worstTileValue,
             _expectedImagesFullFilenames[i].left(_expectedImagesFullFilenames[i].lastIndexOf("/") + 1),  // path to the test (including trailing /)
             QFileInfo(_expectedImagesFullFilenames[i].toStdString().c_str()).fileName(),                 // filename of expected image
             QFileInfo(_resultImagesFullFilenames[i].toStdString().c_str()).fileName(),                   // filename of result image
@@ -104,11 +108,18 @@ int TestCreator::compareImageLists() {
         };
 
         _mismatchWindow.setTestResult(testResult);
-        
-        if (similarityIndex < THRESHOLD) {
-            ++numberOfFailures;
 
+        // Lower threshold for non-Nvidia GPUs
+        double thresholdGlobal{ 0.9995 };
+        double thresholdLocal{ 0.6 };
+        if (gpuVendor != "Nvidia") {
+            thresholdGlobal =  0.97;
+            thresholdLocal = 0.2;
+        }
+
+        if (similarityIndex < thresholdGlobal || worstTileValue < thresholdLocal) {
             if (!isInteractiveMode) {
+                ++numberOfFailures;
                 appendTestResultsToFile(testResult, _mismatchWindow.getComparisonImage(), _mismatchWindow.getSSIMResultsImage(testResult._ssimResults), true);
             } else {
                 _mismatchWindow.exec();
@@ -117,6 +128,7 @@ int TestCreator::compareImageLists() {
                     case USER_RESPONSE_PASS:
                         break;
                     case USE_RESPONSE_FAIL:
+                        ++numberOfFailures;
                         appendTestResultsToFile(testResult, _mismatchWindow.getComparisonImage(), _mismatchWindow.getSSIMResultsImage(testResult._ssimResults), true);
                         break;
                     case USER_RESPONSE_ABORT:
@@ -198,7 +210,8 @@ void TestCreator::appendTestResultsToFile(const TestResult& testResult, const QP
     stream << "TestCreator in folder " << testResult._pathname.left(testResult._pathname.length() - 1) << endl; // remove trailing '/'
     stream << "Expected image was    " << testResult._expectedImageFilename << endl;
     stream << "Actual image was      " << testResult._actualImageFilename << endl;
-    stream << "Similarity index was  " << testResult._error << endl;
+    stream << "Similarity index was  " << testResult._errorGlobal << endl;
+    stream << "Worst tile was  " << testResult._errorLocal << endl;
 
     descriptionFile.close();
 
@@ -253,11 +266,13 @@ void::TestCreator::appendTestResultsToFile(QString testResultFilename, bool hasF
     }
 }
 
-void TestCreator::startTestsEvaluation(const bool isRunningFromCommandLine,
-                                const bool isRunningInAutomaticTestRun, 
-                                const QString& snapshotDirectory,
-                                const QString& branchFromCommandLine,
-                                const QString& userFromCommandLine
+void TestCreator::startTestsEvaluation(
+    QComboBox *gpuVendor, 
+    const bool isRunningFromCommandLine,
+    const bool isRunningInAutomaticTestRun, 
+    const QString& snapshotDirectory,
+    const QString& branchFromCommandLine,
+    const QString& userFromCommandLine
 ) {
     _isRunningFromCommandLine = isRunningFromCommandLine;
     _isRunningInAutomaticTestRun = isRunningInAutomaticTestRun;
@@ -327,12 +342,12 @@ void TestCreator::startTestsEvaluation(const bool isRunningFromCommandLine,
     }
 
     _downloader->downloadFiles(expectedImagesURLs, _snapshotDirectory, _expectedImagesFilenames, (void *)this);
-    finishTestsEvaluation();
+    finishTestsEvaluation(gpuVendor->currentText());
 }
 
-void TestCreator::finishTestsEvaluation() {
+void TestCreator::finishTestsEvaluation(const QString& gpuVendor) {
     // First - compare the pairs of images
-    int numberOfFailures = compareImageLists();
+    int numberOfFailures = compareImageLists(gpuVendor);
  
     // Next - check text results
     numberOfFailures += checkTextResults();
@@ -425,8 +440,9 @@ void TestCreator::createTests(const QString& clientProfile) {
         parent += "/";
     }
 
-    _testsRootDirectory = QFileDialog::getExistingDirectory(nullptr, "Please select test root folder", parent,
-                                                              QFileDialog::ShowDirsOnly);
+    if (!createAllFilesSetup()) {
+        return;
+    }
 
     // If user canceled then restore previous selection and return
     if (_testsRootDirectory == "") {
@@ -819,6 +835,10 @@ void TestCreator::createRecursiveScript(const QString& directory, bool interacti
 
     // If 'directories' is empty, this means that this recursive script has no tests to call, so it is redundant
     if (directories.length() == 0) {
+        QString testRecursivePathname = directory + "/" + TEST_RECURSIVE_FILENAME;
+        if (QFile::exists(testRecursivePathname)) {
+            QFile::remove(testRecursivePathname);
+        }
         return;
     }
 
@@ -851,10 +871,7 @@ void TestCreator::createRecursiveScript(const QString& directory, bool interacti
     textStream << "   nitpick = createNitpick(Script.resolvePath(\".\"));" << endl;
     textStream << "   testsRootPath = nitpick.getTestsRootPath();" << endl << endl;
     textStream << "   nitpick.enableRecursive();" << endl;
-    textStream << "   nitpick.enableAuto();" << endl << endl;
-    textStream << "   if (typeof Test !== 'undefined') {" << endl;
-    textStream << "       Test.wait(10000);" << endl;
-    textStream << "   }" << endl;
+    textStream << "   nitpick.enableAuto();" << endl;
     textStream << "} else {" << endl;
     textStream << "   depth++" << endl;
     textStream << "}" << endl << endl;
@@ -875,23 +892,12 @@ void TestCreator::createRecursiveScript(const QString& directory, bool interacti
 }
 
 void TestCreator::createTestsOutline() {
-    QString previousSelection = _testDirectory;
-    QString parent = previousSelection.left(previousSelection.lastIndexOf('/'));
-    if (!parent.isNull() && parent.right(1) != "/") {
-        parent += "/";
-    }
-
-    _testDirectory =
-        QFileDialog::getExistingDirectory(nullptr, "Please select the tests root folder", parent, QFileDialog::ShowDirsOnly);
-
-    // If user canceled then restore previous selection and return
-    if (_testDirectory == "") {
-        _testDirectory = previousSelection;
+    if (!createAllFilesSetup()) {
         return;
     }
 
     const QString testsOutlineFilename { "testsOutline.md" };
-    QString mdFilename(_testDirectory + "/" + testsOutlineFilename);
+    QString mdFilename(_testsRootDirectory + "/" + testsOutlineFilename);
     QFile mdFile(mdFilename);
     if (!mdFile.open(QIODevice::WriteOnly)) {
         QMessageBox::critical(0, "Internal error: " + QString(__FILE__) + ":" + QString::number(__LINE__), "Failed to create file " + mdFilename);
@@ -905,10 +911,10 @@ void TestCreator::createTestsOutline() {
     stream << "Directories with an appended (*) have an automatic test\n\n";
 
     // We need to know our current depth, as this isn't given by QDirIterator
-    int rootDepth { _testDirectory.count('/') };
+    int rootDepth { _testsRootDirectory.count('/') };
 
     // Each test is shown as the folder name linking to the matching GitHub URL, and the path to the associated test.md file
-    QDirIterator it(_testDirectory, QDirIterator::Subdirectories);
+    QDirIterator it(_testsRootDirectory, QDirIterator::Subdirectories);
     while (it.hasNext()) {
         QString directory = it.next();
 
@@ -1112,7 +1118,10 @@ void TestCreator::createWebPage(
     QCheckBox* updateAWSCheckBox, 
     QRadioButton* diffImageRadioButton,
     QRadioButton* ssimImageRadionButton,
-    QLineEdit* urlLineEdit
+    QLineEdit* urlLineEdit,
+    const QString& branch,
+    const QString& user
+
 ) {
     QString testResults = QFileDialog::getOpenFileName(nullptr, "Please select the zipped test results to update from", nullptr,
                                                        "Zipped TestCreator Results (TestResults--*.zip)");
@@ -1136,6 +1145,8 @@ void TestCreator::createWebPage(
         updateAWSCheckBox, 
         diffImageRadioButton,
         ssimImageRadionButton,
-        urlLineEdit
+        urlLineEdit,
+        branch,
+        user
     );
 }

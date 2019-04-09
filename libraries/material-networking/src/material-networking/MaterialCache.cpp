@@ -560,8 +560,7 @@ void NetworkMaterial::setLightmapMap(const QUrl& url) {
 }
 
 NetworkMaterial::NetworkMaterial(const HFMMaterial& material, const QUrl& textureBaseUrl) :
-    graphics::Material(*material._material),
-    _textures(MapChannel::NUM_MAP_CHANNELS)
+    graphics::Material(*material._material)
 {
     _name = material.name.toStdString();
     if (!material.albedoTexture.filename.isEmpty()) {
@@ -710,7 +709,7 @@ void NetworkMaterial::setTextures(const QVariantMap& textureMap) {
 
 bool NetworkMaterial::isMissingTexture() {
     for (auto& networkTexture : _textures) {
-        auto& texture = networkTexture.texture;
+        auto& texture = networkTexture.second.texture;
         if (!texture) {
             continue;
         }
