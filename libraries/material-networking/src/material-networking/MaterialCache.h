@@ -47,7 +47,7 @@ public:
         }
     };
     using Textures = std::unordered_map<MapChannel, Texture, MapChannelHash>;
-    Textures getTextures() { return _textures; }
+    Textures getTextures() const { return _textures; }
 
 protected:
     friend class Geometry;
@@ -85,6 +85,14 @@ public:
     virtual void downloadFinished(const QByteArray& data) override;
 
     typedef struct ParsedMaterials {
+        ParsedMaterials() {}
+
+        ParsedMaterials(const ParsedMaterials& other) :
+            version(other.version),
+            names(other.names),
+            networkMaterials(other.networkMaterials) {
+        }
+
         uint version { 1 };
         std::vector<std::string> names;
         std::unordered_map<std::string, std::shared_ptr<NetworkMaterial>> networkMaterials;

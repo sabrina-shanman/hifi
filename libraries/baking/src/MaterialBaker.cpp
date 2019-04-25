@@ -152,7 +152,6 @@ void MaterialBaker::processMaterial() {
                             // TODO: Better thread utilization at the top level, not just the MaterialBaker level
                             QMetaObject::invokeMethod(textureBaker.data(), "bake", Qt::QueuedConnection);
                         }
-                        _materialsNeedingRewrite.insert(textureKey, networkMaterial.second);
                     } else {
                         qCDebug(material_baking) << "Texture extension not supported: " << extension;
                     }
@@ -182,17 +181,14 @@ void MaterialBaker::handleFinishedTextureBaker() {
                 relativeURL = _destinationPath.resolved(relativeURL).toDisplayString();
             }
 
-            // Replace the old texture URLs
-            for (auto networkMaterial : _materialsNeedingRewrite.values(textureKey)) {
-                networkMaterial->getTextureMap(baker->getMapChannel())->getTextureSource()->setUrl(relativeURL);
-            }
+            // Queue replacing the old texture URLs
+            _materialRewrites[textureKey] = relativeURL;
         } else {
             // this texture failed to bake - this doesn't fail the entire bake but we need to add the errors from
             // the texture to our warnings
             _warningList << baker->getWarnings();
         }
 
-        _materialsNeedingRewrite.remove(textureKey);
         _textureBakers.remove(textureKey);
 
         if (_textureBakers.empty()) {
@@ -203,18 +199,43 @@ void MaterialBaker::handleFinishedTextureBaker() {
     }
 }
 
+scriptable::ScriptableMaterial createRemappedMaterial(const std::shared_ptr<NetworkMaterial>& networkMaterial, const QHash<QPair<QUrl, image::TextureUsage::Type>, QUrl>& materialRewrites) {
+    // Begin copying material. This copy will have the URLs remapped without modifying the original
+    auto material = std::make_shared<graphics::Material>(*networkMaterial);
+
+    for (const auto& texturePair : networkMaterial->getTextures()) {
+        auto mapChannel = texturePair.first;
+        image::TextureUsage::Type textureType = texturePair.second.texture->getTextureType();
+
+        // Give this material a new texture map for this texture, deep copied to the TextureSource level, so URL rewrites are safe
+        auto newTextureMap = std::make_shared<graphics::TextureMap>(&material->getTextureMap(mapChannel));
+        material->setTextureMap(mapChannel, newTextureMap);
+        auto newTextureSource = std::make_shared<gpu::TextureSource>(*newTextureMap->getTextureSource());
+        newTextureMap->setTextureSource(newTextureSource);
+
+        // We can now re-map this URL without affecting the original, so other baking results are not affected
+        QUrl oldURL = newTextureSource->getUrl();
+        QPair<QUrl, image::TextureUsage::Type> textureKey { oldURL, textureType };
+        QUrl newURL = materialRewrites[textureKey];
+        newTextureSource->setUrl(newURL);
+    }
+
+    // URLs are remapped. Output ScriptableMaterial.
+    return scriptable::ScriptableMaterial(material);
+}
+
 void MaterialBaker::outputMaterial() {
     if (_materialResource) {
         QJsonObject json;
         if (_materialResource->parsedMaterials.networkMaterials.size() == 1) {
             auto networkMaterial = _materialResource->parsedMaterials.networkMaterials.begin();
-            auto scriptableMaterial = scriptable::ScriptableMaterial(networkMaterial->second);
+            auto scriptableMaterial = createRemappedMaterial(networkMaterial->second, _materialRewrites);
             QVariant materialVariant = scriptable::scriptableMaterialToScriptValue(&_scriptEngine, scriptableMaterial).toVariant();
             json.insert("materials", QJsonDocument::fromVariant(materialVariant).object());
         } else {
             QJsonArray materialArray;
             for (auto networkMaterial : _materialResource->parsedMaterials.networkMaterials) {
-                auto scriptableMaterial = scriptable::ScriptableMaterial(networkMaterial.second);
+                auto scriptableMaterial = createRemappedMaterial(networkMaterial.second, _materialRewrites);
                 QVariant materialVariant = scriptable::scriptableMaterialToScriptValue(&_scriptEngine, scriptableMaterial).toVariant();
                 materialArray.append(QJsonDocument::fromVariant(materialVariant).object());
             }

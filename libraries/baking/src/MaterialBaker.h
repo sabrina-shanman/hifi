@@ -59,7 +59,7 @@ private:
     NetworkMaterialResourcePointer _materialResource;
 
     QHash<QPair<QUrl, image::TextureUsage::Type>, QSharedPointer<TextureBaker>> _textureBakers;
-    QMultiHash<QPair<QUrl, image::TextureUsage::Type>, std::shared_ptr<NetworkMaterial>> _materialsNeedingRewrite;
+    QHash<QPair<QUrl, image::TextureUsage::Type>, QUrl> _materialRewrites;
 
     QString _bakedOutputDir;
     QString _textureOutputDir;
