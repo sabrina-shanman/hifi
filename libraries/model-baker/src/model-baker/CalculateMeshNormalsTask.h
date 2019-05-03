@@ -20,7 +20,7 @@
 // Calculate mesh normals if not already present in the mesh
 class CalculateMeshNormalsTask {
 public:
-    using Input = std::vector<hfm::Mesh>;
+    using Input = baker::VaryingSet3<std::vector<std::vector<hfm::MeshPart>>, baker::VerticesPerMesh, baker::NormalsPerMesh>;
     using Output = baker::NormalsPerMesh;
     using JobModel = baker::Job::ModelIO<CalculateMeshNormalsTask, Input, Output>;
 

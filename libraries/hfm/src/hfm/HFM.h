@@ -151,6 +151,13 @@ public:
 /// A single part of a mesh (with the same material).
 class MeshPart {
 public:
+    MeshPart::MeshPart() {}
+    MeshPart::MeshPart(const MeshPart& other) :
+        quadIndices(other.quadIndices),
+        quadTrianglesIndices(other.quadTrianglesIndices),
+        triangleIndices(other.triangleIndices),
+        materialID(other.materialID) {
+    }
 
     QVector<int> quadIndices; // original indices from the FBX mesh
     QVector<int> quadTrianglesIndices; // original indices from the FBX mesh of the quad converted as triangles

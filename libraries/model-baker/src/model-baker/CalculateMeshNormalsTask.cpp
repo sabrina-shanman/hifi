@@ -14,25 +14,30 @@
 #include "ModelMath.h"
 
 void CalculateMeshNormalsTask::run(const baker::BakeContextPointer& context, const Input& input, Output& output) {
-    const auto& meshes = input;
+    const auto& meshPartsPerMeshIn = input.get0();
+    const auto& verticesPerMeshIn = input.get1();
+    const auto& normalsPerMeshIn = input.get2();
     auto& normalsPerMeshOut = output;
 
-    normalsPerMeshOut.reserve(meshes.size());
-    for (int i = 0; i < (int)meshes.size(); i++) {
-        const auto& mesh = meshes[i];
+    size_t meshCount = meshPartsPerMeshIn.size();
+    normalsPerMeshOut.reserve(meshCount);
+    for (size_t i = 0; i < meshCount; i++) {
+        const auto& meshPartsIn = meshPartsPerMeshIn[i];
+        const auto& verticesIn = verticesPerMeshIn[i];
+        const auto& normalsIn = normalsPerMeshIn[i];
         normalsPerMeshOut.emplace_back();
-        auto& normalsOut = normalsPerMeshOut[normalsPerMeshOut.size()-1];
+        auto& normalsOut = normalsPerMeshOut.back();
         // Only calculate normals if this mesh doesn't already have them
-        if (!mesh.normals.empty()) {
-            normalsOut = mesh.normals.toStdVector();
+        if (!normalsIn.empty()) {
+            normalsOut = normalsIn;
         } else {
-            normalsOut.resize(mesh.vertices.size());
-            baker::calculateNormals(mesh,
+            normalsOut.resize(verticesIn.size());
+            baker::calculateNormals(meshPartsIn,
                 [&normalsOut](int normalIndex) /* NormalAccessor */ {
                     return &normalsOut[normalIndex];
                 },
-                [&mesh](int vertexIndex, glm::vec3& outVertex) /* VertexSetter */ {
-                    outVertex = baker::safeGet(mesh.vertices, vertexIndex);
+                [&verticesIn](int vertexIndex, glm::vec3& outVertex) /* VertexSetter */ {
+                    outVertex = verticesIn[vertexIndex];
                 }
             );
         }

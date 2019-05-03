@@ -18,7 +18,7 @@
 // Calculate blendshape normals if not already present in the blendshape
 class CalculateBlendshapeNormalsTask {
 public:
-    using Input = baker::VaryingSet2<baker::BlendshapesPerMesh, std::vector<hfm::Mesh>>;
+    using Input = baker::VaryingSet3<baker::MeshPartsPerMesh, std::vector<baker::VerticesPerBlendshape>, std::vector<baker::NormalsPerBlendshape>>;
     using Output = std::vector<baker::NormalsPerBlendshape>;
     using JobModel = baker::Job::ModelIO<CalculateBlendshapeNormalsTask, Input, Output>;
 

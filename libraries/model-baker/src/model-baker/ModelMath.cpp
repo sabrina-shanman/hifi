@@ -15,31 +15,27 @@
 #include "ModelBakerLogging.h"
 
 namespace baker {
-    template<class T>
-    const T& checkedAt(const QVector<T>& vector, int i) {
-        if (i < 0 || i >= vector.size()) {
-            throw std::out_of_range("baker::checked_at (ModelMath.cpp): index " + std::to_string(i) + " is out of range");
+    void sanitizeIndices(QVector<int>& indices, size_t dataSourceSize) {
+        if (dataSourceSize == 0) {
+            indices.resize(0);
+            return;
         }
-        return vector[i];
+
+        int maxIndex;
+        if (dataSourceSize - 1 > std::numeric_limits<int>::max()) {
+            maxIndex = std::numeric_limits<int>::max();
+        } else {
+            maxIndex = dataSourceSize - 1;
+        }
+
+        for (auto index = indices.begin(); index != indices.end(); index++) {
+            if (*index < 0 || *index > maxIndex) {
+                *index = 0;
+            }
+        }
     }
 
-    template<class T>
-    const T& checkedAt(const std::vector<T>& vector, int i) {
-        if (i < 0 || i >= vector.size()) {
-            throw std::out_of_range("baker::checked_at (ModelMath.cpp): index " + std::to_string(i) + " is out of range");
-        }
-        return vector[i];
-    }
-
-    template<class T>
-    T& checkedAt(std::vector<T>& vector, int i) {
-        if (i < 0 || i >= vector.size()) {
-            throw std::out_of_range("baker::checked_at (ModelMath.cpp): index " + std::to_string(i) + " is out of range");
-        }
-        return vector[i];
-    }
-
-    void setTangent(const HFMMesh& mesh, const IndexAccessor& vertexAccessor, int firstIndex, int secondIndex) {
+    void setTangent(const IndexAccessor& vertexAccessor, int firstIndex, int secondIndex) {
         glm::vec3 vertex[2];
         glm::vec2 texCoords[2];
         glm::vec3 normal;
@@ -56,9 +52,9 @@ namespace baker {
         }
     }
 
-    void calculateNormals(const hfm::Mesh& mesh, NormalAccessor normalAccessor, VertexSetter vertexSetter) {
+    void calculateNormals(const std::vector<hfm::MeshPart>& meshParts, NormalAccessor normalAccessor, VertexSetter vertexSetter) {
         static int repeatMessageID = LogHandler::getInstance().newRepeatedMessageID();
-        for (const HFMMeshPart& part : mesh.parts) {
+        for (const hfm::MeshPart& part : meshParts) {
             for (int i = 0; i < part.quadIndices.size(); i += 4) {
                 glm::vec3* n0 = normalAccessor(part.quadIndices[i]);
                 glm::vec3* n1 = normalAccessor(part.quadIndices[i + 1]);
@@ -96,21 +92,21 @@ namespace baker {
         }
     }
 
-    void calculateTangents(const hfm::Mesh& mesh, IndexAccessor accessor) {
+    void calculateTangents(const std::vector<hfm::MeshPart>& meshParts, IndexAccessor accessor) {
         static int repeatMessageID = LogHandler::getInstance().newRepeatedMessageID();
-        for (const HFMMeshPart& part : mesh.parts) {
+        for (const hfm::MeshPart& part : meshParts) {
             for (int i = 0; i < part.quadIndices.size(); i += 4) {
-                setTangent(mesh, accessor, part.quadIndices.at(i), part.quadIndices.at(i + 1));
-                setTangent(mesh, accessor, part.quadIndices.at(i + 1), part.quadIndices.at(i + 2));
-                setTangent(mesh, accessor, part.quadIndices.at(i + 2), part.quadIndices.at(i + 3));
-                setTangent(mesh, accessor, part.quadIndices.at(i + 3), part.quadIndices.at(i));
+                setTangent(accessor, part.quadIndices.at(i), part.quadIndices.at(i + 1));
+                setTangent(accessor, part.quadIndices.at(i + 1), part.quadIndices.at(i + 2));
+                setTangent(accessor, part.quadIndices.at(i + 2), part.quadIndices.at(i + 3));
+                setTangent(accessor, part.quadIndices.at(i + 3), part.quadIndices.at(i));
             }
             // <= size - 3 in order to prevent overflowing triangleIndices when (i % 3) != 0
             // This is most likely evidence of a further problem in extractMesh()
             for (int i = 0; i <= part.triangleIndices.size() - 3; i += 3) {
-                setTangent(mesh, accessor, part.triangleIndices.at(i), part.triangleIndices.at(i + 1));
-                setTangent(mesh, accessor, part.triangleIndices.at(i + 1), part.triangleIndices.at(i + 2));
-                setTangent(mesh, accessor, part.triangleIndices.at(i + 2), part.triangleIndices.at(i));
+                setTangent(accessor, part.triangleIndices.at(i), part.triangleIndices.at(i + 1));
+                setTangent(accessor, part.triangleIndices.at(i + 1), part.triangleIndices.at(i + 2));
+                setTangent(accessor, part.triangleIndices.at(i + 2), part.triangleIndices.at(i));
             }
             if ((part.triangleIndices.size() % 3) != 0) {
                 HIFI_FCDEBUG_ID(model_baker(), repeatMessageID, "Error in baker::calculateTangents: part.triangleIndices.size() is not divisible by three");

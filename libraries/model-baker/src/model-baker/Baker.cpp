@@ -21,13 +21,14 @@
 #include "PrepareJointsTask.h"
 #include "BuildDracoMeshTask.h"
 #include "ParseFlowDataTask.h"
+#include "SanitizeMeshIndicesTask.h"
 
 namespace baker {
 
     class GetModelPartsTask {
     public:
         using Input = hfm::Model::Pointer;
-        using Output = VaryingSet6<std::vector<hfm::Mesh>, hifi::URL, baker::MeshIndicesToModelNames, baker::BlendshapesPerMesh, QHash<QString, hfm::Material>, std::vector<hfm::Joint>>;
+        using Output = VaryingSet6<std::vector<hfm::Mesh>, hifi::URL, MeshIndicesToModelNames, BlendshapesPerMesh, QHash<QString, hfm::Material>, std::vector<hfm::Joint>>;
         using JobModel = Job::ModelIO<GetModelPartsTask, Input, Output>;
 
         void run(const BakeContextPointer& context, const Input& input, Output& output) {
@@ -45,28 +46,114 @@ namespace baker {
         }
     };
 
+    class GetMeshPartsTask {
+    public:
+        using Input = std::vector<hfm::Mesh>;
+        using Output = VaryingSet5<MeshPartsPerMesh, VerticesPerMesh, NormalsPerMesh, TangentsPerMesh, TexCoordsPerMesh>;
+        using JobModel = Job::ModelIO<GetMeshPartsTask, Input, Output>;
+
+        void run(const BakeContextPointer& context, const Input& input, Output& output) {
+            const auto& meshes = input;
+            auto& meshPartsPerMesh = output.edit0();
+            auto& verticesPerMesh = output.edit1();
+            auto& normalsPerMesh = output.edit2();
+            auto& tangentsPerMesh = output.edit3();
+            auto& texCoordsPerMesh = output.edit4();
+
+            meshPartsPerMesh.reserve(meshes.size());
+            verticesPerMesh.reserve(meshes.size());
+            normalsPerMesh.reserve(meshes.size());
+            tangentsPerMesh.reserve(meshes.size());
+            texCoordsPerMesh.reserve(meshes.size());
+            for (const auto& mesh : meshes) {
+                meshPartsPerMesh.push_back(mesh.parts.toStdVector());
+                verticesPerMesh.push_back(mesh.vertices.toStdVector());
+                normalsPerMesh.push_back(mesh.normals.toStdVector());
+                tangentsPerMesh.push_back(mesh.tangents.toStdVector());
+                texCoordsPerMesh.push_back(mesh.texCoords.toStdVector());
+            }
+        }
+    };
+
+    // TODO: Use this
+    class GetBlendshapePartsTask {
+        using Input = BlendshapesPerMesh;
+        using Output = VaryingSet4<std::vector<IndicesPerBlendshape>, std::vector<VerticesPerBlendshape>, std::vector<NormalsPerBlendshape>, std::vector<TangentsPerBlendshape>>;
+        using JobModel = Job::ModelIO<GetBlendshapePartsTask, Input, Output>;
+
+        void run(const BakeContextPointer& context, const Input& input, Output& output) {
+            const auto& blendshapesPerMesh = input;
+            auto& indicesPerBlendshapePerMesh = output.edit0();
+            auto& verticesPerBlendshapePerMesh = output.edit1();
+            auto& normalsPerBlendshapePerMesh = output.edit2();
+            auto& tangentsPerBlendshapePerMesh = output.edit3();
+
+            for (size_t i = 0; i < blendshapesPerMesh.size(); i++) {
+                const auto& blendshapes = blendshapesPerMesh[i];
+                indicesPerBlendshapePerMesh.emplace_back();
+                auto& indicesPerBlendshape = indicesPerBlendshapePerMesh.back();
+                verticesPerBlendshapePerMesh.emplace_back();
+                auto& verticesPerBlendshape = verticesPerBlendshapePerMesh.back();
+                normalsPerBlendshapePerMesh.emplace_back();
+                auto& normalsPerBlendshape = normalsPerBlendshapePerMesh.back();
+                tangentsPerBlendshapePerMesh.emplace_back();
+                auto& tangentsPerBlendshape = tangentsPerBlendshapePerMesh.back();
+
+                indicesPerBlendshape.reserve(blendshapes.size());
+                verticesPerBlendshape.reserve(blendshapes.size());
+                normalsPerBlendshape.reserve(blendshapes.size());
+                tangentsPerBlendshape.reserve(blendshapes.size());
+                for (const auto& blendshape : blendshapes) {
+                    indicesPerBlendshape.push_back(blendshape.indices.toStdVector());
+                    verticesPerBlendshape.push_back(blendshape.vertices.toStdVector());
+                    normalsPerBlendshape.push_back(blendshape.normals.toStdVector());
+                    tangentsPerBlendshape.push_back(blendshape.tangents.toStdVector());
+                }
+            }
+        }
+    };
+
     class BuildBlendshapesTask {
     public:
-        using Input = VaryingSet3<BlendshapesPerMesh, std::vector<NormalsPerBlendshape>, std::vector<TangentsPerBlendshape>>;
+        using Input = VaryingSet4<std::vector<IndicesPerBlendshape>, std::vector<VerticesPerBlendshape>, std::vector<NormalsPerBlendshape>, std::vector<TangentsPerBlendshape>>;
         using Output = BlendshapesPerMesh;
         using JobModel = Job::ModelIO<BuildBlendshapesTask, Input, Output>;
 
         void run(const BakeContextPointer& context, const Input& input, Output& output) {
-            const auto& blendshapesPerMeshIn = input.get0();
-            const auto& normalsPerBlendshapePerMesh = input.get1();
-            const auto& tangentsPerBlendshapePerMesh = input.get2();
+            const auto& indicesPerBlendshapePerMesh = input.get0();
+            const auto& verticesPerBlendshapePerMesh = input.get1();
+            const auto& normalsPerBlendshapePerMesh = input.get2();
+            const auto& tangentsPerBlendshapePerMesh = input.get3();
             auto& blendshapesPerMeshOut = output;
 
-            blendshapesPerMeshOut = blendshapesPerMeshIn;
+            size_t numMeshes = indicesPerBlendshapePerMesh.size();
+            numMeshes = std::min(numMeshes, verticesPerBlendshapePerMesh.size());
+            numMeshes = std::min(numMeshes, normalsPerBlendshapePerMesh.size());
+            numMeshes = std::min(numMeshes, tangentsPerBlendshapePerMesh.size());
 
-            for (int i = 0; i < (int)blendshapesPerMeshOut.size(); i++) {
-                const auto& normalsPerBlendshape = safeGet(normalsPerBlendshapePerMesh, i);
-                const auto& tangentsPerBlendshape = safeGet(tangentsPerBlendshapePerMesh, i);
+            blendshapesPerMeshOut.resize(numMeshes);
+            for (size_t i = 0; i < numMeshes; i++) {
+                const auto& indicesPerBlendshape = indicesPerBlendshapePerMesh[i];
+                const auto& verticesPerBlendshape = verticesPerBlendshapePerMesh[i];
+                const auto& normalsPerBlendshape = normalsPerBlendshapePerMesh[i];
+                const auto& tangentsPerBlendshape = tangentsPerBlendshapePerMesh[i];
                 auto& blendshapesOut = blendshapesPerMeshOut[i];
-                for (int j = 0; j < (int)blendshapesOut.size(); j++) {
-                    const auto& normals = safeGet(normalsPerBlendshape, j);
-                    const auto& tangents = safeGet(tangentsPerBlendshape, j);
+                
+                size_t numBlendshapes = indicesPerBlendshape.size();
+                numBlendshapes = std::min(numBlendshapes, verticesPerBlendshape.size());
+                numBlendshapes = std::min(numBlendshapes, normalsPerBlendshape.size());
+                numBlendshapes = std::min(numBlendshapes, tangentsPerBlendshape.size());
+
+                blendshapesOut.resize(numBlendshapes);
+                for (size_t j = 0; j < numBlendshapes; j++) {
+                    const auto& indices = indicesPerBlendshape[j];
+                    const auto& vertices = verticesPerBlendshape[j];
+                    const auto& normals = normalsPerBlendshape[j];
+                    const auto& tangents = tangentsPerBlendshape[j];
                     auto& blendshape = blendshapesOut[j];
+
+                    blendshape.indices = QVector<int>::fromStdVector(indices);
+                    blendshape.vertices = QVector<glm::vec3>::fromStdVector(vertices);
                     blendshape.normals = QVector<glm::vec3>::fromStdVector(normals);
                     blendshape.tangents = QVector<glm::vec3>::fromStdVector(tangents);
                 }
@@ -76,21 +163,23 @@ namespace baker {
 
     class BuildMeshesTask {
     public:
-        using Input = VaryingSet5<std::vector<hfm::Mesh>, std::vector<graphics::MeshPointer>, NormalsPerMesh, TangentsPerMesh, BlendshapesPerMesh>;
+        using Input = VaryingSet6<std::vector<hfm::Mesh>, MeshPartsPerMesh, std::vector<graphics::MeshPointer>, NormalsPerMesh, TangentsPerMesh, BlendshapesPerMesh>;
         using Output = std::vector<hfm::Mesh>;
         using JobModel = Job::ModelIO<BuildMeshesTask, Input, Output>;
 
         void run(const BakeContextPointer& context, const Input& input, Output& output) {
             auto& meshesIn = input.get0();
             int numMeshes = (int)meshesIn.size();
-            auto& graphicsMeshesIn = input.get1();
-            auto& normalsPerMeshIn = input.get2();
-            auto& tangentsPerMeshIn = input.get3();
-            auto& blendshapesPerMeshIn = input.get4();
+            auto& meshPartsIn = input.get1();
+            auto& graphicsMeshesIn = input.get2();
+            auto& normalsPerMeshIn = input.get3();
+            auto& tangentsPerMeshIn = input.get4();
+            auto& blendshapesPerMeshIn = input.get5();
 
             auto meshesOut = meshesIn;
             for (int i = 0; i < numMeshes; i++) {
                 auto& meshOut = meshesOut[i];
+                meshOut.parts = QVector<hfm::MeshPart>::fromStdVector(safeGet(meshPartsIn, i));
                 meshOut._mesh = safeGet(graphicsMeshesIn, i);
                 meshOut.normals = QVector<glm::vec3>::fromStdVector(safeGet(normalsPerMeshIn, i));
                 meshOut.tangents = QVector<glm::vec3>::fromStdVector(safeGet(tangentsPerMeshIn, i));
@@ -136,11 +225,22 @@ namespace baker {
             const auto blendshapesPerMeshIn = modelPartsIn.getN<GetModelPartsTask::Output>(3);
             const auto materials = modelPartsIn.getN<GetModelPartsTask::Output>(4);
             const auto jointsIn = modelPartsIn.getN<GetModelPartsTask::Output>(5);
+            const auto getMeshPartsOutputs = model.addJob<GetMeshPartsTask>("GetMeshParts", meshesIn);
+            const auto meshPartsPerMeshInRaw = getMeshPartsOutputs.getN<GetMeshPartsTask::Output>(0);
+            const auto verticesPerMeshIn = getMeshPartsOutputs.getN<GetMeshPartsTask::Output>(1);
+            const auto normalsPerMeshIn = getMeshPartsOutputs.getN<GetMeshPartsTask::Output>(2);
+            const auto tangentsPerMeshIn = getMeshPartsOutputs.getN<GetMeshPartsTask::Output>(3);
+            const auto texCoordsPerMeshIn = getMeshPartsOutputs.getN<GetMeshPartsTask::Output>(4);
+
+            // Do checks on the mesh indices now, so later processing steps can have fewer validation steps
+            const auto sanitizeMeshIndicesInputs = SanitizeMeshIndicesTask::Input(meshPartsPerMeshInRaw, verticesPerMeshIn);
+            const auto meshPartsPerMeshIn = model.addJob<SanitizeMeshIndicesTask>("SanitizeMeshIndices", sanitizeMeshIndicesInputs);
 
             // Calculate normals and tangents for meshes and blendshapes if they do not exist
             // Note: Normals are never calculated here for OBJ models. OBJ files optionally define normals on a per-face basis, so for consistency normals are calculated beforehand in OBJSerializer.
-            const auto normalsPerMesh = model.addJob<CalculateMeshNormalsTask>("CalculateMeshNormals", meshesIn);
-            const auto calculateMeshTangentsInputs = CalculateMeshTangentsTask::Input(normalsPerMesh, meshesIn, materials).asVarying();
+            const auto calculateMeshNormalsInputs = CalculateMeshNormalsTask::Input(meshPartsPerMeshIn, verticesPerMeshIn, normalsPerMeshIn);
+            const auto normalsPerMeshOut = model.addJob<CalculateMeshNormalsTask>("CalculateMeshNormals", calculateMeshNormalsInputs);
+            const auto calculateMeshTangentsInputs = CalculateMeshTangentsTask::Input(meshPartsPerMeshIn, verticesPerMeshIn, normalsPerMeshOut, tangentsPerMeshIn, texCoordsPerMeshIn, materials).asVarying();
             const auto tangentsPerMesh = model.addJob<CalculateMeshTangentsTask>("CalculateMeshTangents", calculateMeshTangentsInputs);
             const auto calculateBlendshapeNormalsInputs = CalculateBlendshapeNormalsTask::Input(blendshapesPerMeshIn, meshesIn).asVarying();
             const auto normalsPerBlendshapePerMesh = model.addJob<CalculateBlendshapeNormalsTask>("CalculateBlendshapeNormals", calculateBlendshapeNormalsInputs);
@@ -148,7 +248,7 @@ namespace baker {
             const auto tangentsPerBlendshapePerMesh = model.addJob<CalculateBlendshapeTangentsTask>("CalculateBlendshapeTangents", calculateBlendshapeTangentsInputs);
 
             // Build the graphics::MeshPointer for each hfm::Mesh
-            const auto buildGraphicsMeshInputs = BuildGraphicsMeshTask::Input(meshesIn, url, meshIndicesToModelNames, normalsPerMesh, tangentsPerMesh).asVarying();
+            const auto buildGraphicsMeshInputs = BuildGraphicsMeshTask::Input(meshesIn, url, meshIndicesToModelNames, normalsPerMeshOut, tangentsPerMesh).asVarying();
             const auto graphicsMeshes = model.addJob<BuildGraphicsMeshTask>("BuildGraphicsMesh", buildGraphicsMeshInputs);
 
             // Prepare joint information
@@ -167,7 +267,7 @@ namespace baker {
             // TODO: Tangent support (Needs changes to FBXSerializer_Mesh as well)
             // NOTE: Due to an unresolved linker error, BuildDracoMeshTask is not functional on Android
             // TODO: Figure out why BuildDracoMeshTask.cpp won't link with draco on Android
-            const auto buildDracoMeshInputs = BuildDracoMeshTask::Input(meshesIn, normalsPerMesh, tangentsPerMesh).asVarying();
+            const auto buildDracoMeshInputs = BuildDracoMeshTask::Input(meshesIn, normalsPerMeshOut, tangentsPerMesh).asVarying();
             const auto buildDracoMeshOutputs = model.addJob<BuildDracoMeshTask>("BuildDracoMesh", buildDracoMeshInputs);
             const auto dracoMeshes = buildDracoMeshOutputs.getN<BuildDracoMeshTask::Output>(0);
             const auto materialList = buildDracoMeshOutputs.getN<BuildDracoMeshTask::Output>(1);
@@ -178,7 +278,7 @@ namespace baker {
             // Combine the outputs into a new hfm::Model
             const auto buildBlendshapesInputs = BuildBlendshapesTask::Input(blendshapesPerMeshIn, normalsPerBlendshapePerMesh, tangentsPerBlendshapePerMesh).asVarying();
             const auto blendshapesPerMeshOut = model.addJob<BuildBlendshapesTask>("BuildBlendshapes", buildBlendshapesInputs);
-            const auto buildMeshesInputs = BuildMeshesTask::Input(meshesIn, graphicsMeshes, normalsPerMesh, tangentsPerMesh, blendshapesPerMeshOut).asVarying();
+            const auto buildMeshesInputs = BuildMeshesTask::Input(meshesIn, graphicsMeshes, normalsPerMeshOut, tangentsPerMesh, blendshapesPerMeshOut).asVarying();
             const auto meshesOut = model.addJob<BuildMeshesTask>("BuildMeshes", buildMeshesInputs);
             const auto buildModelInputs = BuildModelTask::Input(hfmModelIn, meshesOut, jointsOut, jointRotationOffsets, jointIndices, flowData).asVarying();
             const auto hfmModelOut = model.addJob<BuildModelTask>("BuildModel", buildModelInputs);
