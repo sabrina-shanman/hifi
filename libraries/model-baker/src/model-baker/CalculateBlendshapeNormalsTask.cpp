@@ -14,37 +14,44 @@
 #include "ModelMath.h"
 
 void CalculateBlendshapeNormalsTask::run(const baker::BakeContextPointer& context, const Input& input, Output& output) {
-    const auto& blendshapesPerMesh = input.get0();
-    const auto& meshes = input.get1();
+    const auto& meshPartsPerMesh = input.get0();
+    const auto& indicesPerBlendshapePerMesh = input.get1();
+    const auto& verticesPerBlendshapePerMesh = input.get2();
+    const auto& normalsPerBlendshapePerMeshIn = input.get3();
     auto& normalsPerBlendshapePerMeshOut = output;
 
-    normalsPerBlendshapePerMeshOut.reserve(blendshapesPerMesh.size());
-    for (size_t i = 0; i < blendshapesPerMesh.size(); i++) {
-        const auto& mesh = meshes[i];
-        const auto& blendshapes = blendshapesPerMesh[i];
+    size_t numMeshes = std::min(meshPartsPerMesh.size(), indicesPerBlendshapePerMesh.size(), verticesPerBlendshapePerMesh.size());
+    normalsPerBlendshapePerMeshOut.reserve(numMeshes);
+    for (size_t i = 0; i < numMeshes; i++) {
+        const auto& meshParts = meshPartsPerMesh[i];
+        const auto& indicesPerBlendshape = indicesPerBlendshapePerMesh[i];
+        const auto& verticesPerBlendshape = verticesPerBlendshapePerMesh[i];
+        const auto& normalsPerBlendshapeIn = normalsPerBlendshapePerMeshIn[i];
         normalsPerBlendshapePerMeshOut.emplace_back();
-        auto& normalsPerBlendshapeOut = normalsPerBlendshapePerMeshOut[normalsPerBlendshapePerMeshOut.size()-1];
+        auto& normalsPerBlendshapeOut = normalsPerBlendshapePerMeshOut.back();
 
-        normalsPerBlendshapeOut.reserve(blendshapes.size());
-        for (size_t j = 0; j < blendshapes.size(); j++) {
-            const auto& blendshape = blendshapes[j];
-            const auto& normalsIn = blendshape.normals;
+        size_t numBlendshapes = verticesPerBlendshape.size();
+        normalsPerBlendshapeOut.reserve(numBlendshapes);
+        for (size_t j = 0; j < numBlendshapes; j++) {
+            const auto& blendshapeIndices = indicesPerBlendshape[j];
+            const auto& blendshapeVertices = verticesPerBlendshape[j];
+            const auto& blendshapeNormalsIn = normalsPerBlendshapeIn[j];
             // Check if normals are already defined. Otherwise, calculate them from existing blendshape vertices.
-            if (!normalsIn.empty()) {
-                normalsPerBlendshapeOut.push_back(normalsIn.toStdVector());
+            if (!blendshapeNormalsIn.empty()) {
+                normalsPerBlendshapeOut.push_back(blendshapeNormalsIn);
             } else {
                 // Create lookup to get index in blendshape from vertex index in mesh
                 std::vector<int> reverseIndices;
-                reverseIndices.resize(mesh.vertices.size());
+                reverseIndices.resize(blendshapeVertices.size());
                 std::iota(reverseIndices.begin(), reverseIndices.end(), 0);
-                for (int indexInBlendShape = 0; indexInBlendShape < blendshape.indices.size(); ++indexInBlendShape) {
-                    auto indexInMesh = blendshape.indices[indexInBlendShape];
+                for (int indexInBlendShape = 0; indexInBlendShape < blendshapeIndices.size(); ++indexInBlendShape) {
+                    auto indexInMesh = blendshapeIndices[indexInBlendShape];
                     reverseIndices[indexInMesh] = indexInBlendShape;
                 }
 
                 normalsPerBlendshapeOut.emplace_back();
                 auto& normals = normalsPerBlendshapeOut[normalsPerBlendshapeOut.size()-1];
-                normals.resize(mesh.vertices.size());
+                normals.resize(mesh.vertices.size()); // TODO: Why mesh.vertices.size()? Why not just the blendshape vertices?
                 baker::calculateNormals(mesh,
                     [&reverseIndices, &blendshape, &normals](int normalIndex) /* NormalAccessor */ {
                         const auto lookupIndex = reverseIndices[normalIndex];
