@@ -14,15 +14,19 @@
 #include "ModelMath.h"
 
 void CalculateBlendshapeNormalsTask::run(const baker::BakeContextPointer& context, const Input& input, Output& output) {
-    const auto& meshPartsPerMesh = input.get0();
-    const auto& indicesPerBlendshapePerMesh = input.get1();
-    const auto& verticesPerBlendshapePerMesh = input.get2();
-    const auto& normalsPerBlendshapePerMeshIn = input.get3();
+    const auto& verticesPerMesh = input.get0();
+    const auto& meshPartsPerMesh = input.get1();
+    const auto& indicesPerBlendshapePerMesh = input.get2();
+    const auto& verticesPerBlendshapePerMesh = input.get3();
+    const auto& normalsPerBlendshapePerMeshIn = input.get4();
     auto& normalsPerBlendshapePerMeshOut = output;
 
-    size_t numMeshes = std::min(meshPartsPerMesh.size(), indicesPerBlendshapePerMesh.size(), verticesPerBlendshapePerMesh.size());
+    size_t numMeshes = std::min(verticesPerMesh.size(), meshPartsPerMesh.size());
+    numMeshes = std::min(numMeshes, indicesPerBlendshapePerMesh.size());
+    numMeshes = std::min(numMeshes, verticesPerBlendshapePerMesh.size());
     normalsPerBlendshapePerMeshOut.reserve(numMeshes);
     for (size_t i = 0; i < numMeshes; i++) {
+        const auto& meshVertices = verticesPerMesh[i];
         const auto& meshParts = meshPartsPerMesh[i];
         const auto& indicesPerBlendshape = indicesPerBlendshapePerMesh[i];
         const auto& verticesPerBlendshape = verticesPerBlendshapePerMesh[i];
@@ -35,7 +39,7 @@ void CalculateBlendshapeNormalsTask::run(const baker::BakeContextPointer& contex
         for (size_t j = 0; j < numBlendshapes; j++) {
             const auto& blendshapeIndices = indicesPerBlendshape[j];
             const auto& blendshapeVertices = verticesPerBlendshape[j];
-            const auto& blendshapeNormalsIn = normalsPerBlendshapeIn[j];
+            const auto& blendshapeNormalsIn = baker::safeGet(normalsPerBlendshapeIn, j);
             // Check if normals are already defined. Otherwise, calculate them from existing blendshape vertices.
             if (!blendshapeNormalsIn.empty()) {
                 normalsPerBlendshapeOut.push_back(blendshapeNormalsIn);
@@ -50,22 +54,22 @@ void CalculateBlendshapeNormalsTask::run(const baker::BakeContextPointer& contex
                 }
 
                 normalsPerBlendshapeOut.emplace_back();
-                auto& normals = normalsPerBlendshapeOut[normalsPerBlendshapeOut.size()-1];
-                normals.resize(mesh.vertices.size()); // TODO: Why mesh.vertices.size()? Why not just the blendshape vertices?
-                baker::calculateNormals(mesh,
-                    [&reverseIndices, &blendshape, &normals](int normalIndex) /* NormalAccessor */ {
+                auto& blendshapeNormals = normalsPerBlendshapeOut[normalsPerBlendshapeOut.size()-1];
+                blendshapeNormals.resize(blendshapeVertices.size()); // TODO: Why mesh.vertices.size()? Why not just the blendshape vertices?
+                baker::calculateNormals(meshParts,
+                    [&reverseIndices, &blendshapeVertices, &blendshapeNormals](int normalIndex) /* NormalAccessor */ {
                         const auto lookupIndex = reverseIndices[normalIndex];
-                        if (lookupIndex < blendshape.vertices.size()) {
-                            return &normals[lookupIndex];
+                        if (lookupIndex < blendshapeVertices.size()) {
+                            return &blendshapeNormals[lookupIndex];
                         } else {
                             // Index isn't in the blendshape. Request that the normal not be calculated.
                             return (glm::vec3*)nullptr;
                         }
                     },
-                    [&mesh, &reverseIndices, &blendshape](int vertexIndex, glm::vec3& outVertex) /* VertexSetter */ {
+                    [&reverseIndices, &blendshapeVertices](int vertexIndex, glm::vec3& outVertex) /* VertexSetter */ {
                         const auto lookupIndex = reverseIndices[vertexIndex];
-                        if (lookupIndex < blendshape.vertices.size()) {
-                            outVertex = blendshape.vertices[lookupIndex];
+                        if (lookupIndex < blendshapeVertices.size()) {
+                            outVertex = blendshapeVertices[lookupIndex];
                         } else {
                             // Index isn't in the blendshape, so return vertex from mesh
                             outVertex = baker::safeGet(mesh.vertices, lookupIndex);
