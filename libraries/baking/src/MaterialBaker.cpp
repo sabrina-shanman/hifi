@@ -98,6 +98,7 @@ void MaterialBaker::processMaterial() {
         qCDebug(material_baking) << "Creating materialTextures output folder" << _textureOutputDir;
         if (!QDir().mkpath(_textureOutputDir)) {
             handleError("Failed to create materialTextures output folder " + _textureOutputDir);
+            return;
         }
     }
 
