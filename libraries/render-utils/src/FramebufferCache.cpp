@@ -15,6 +15,9 @@
 #include <gpu/Format.h>
 #include <gpu/Framebuffer.h>
 
+// TODO: Remove after testing
+#include <QThread.h>
+
 #include "RenderUtilsLogging.h"
 
 void FramebufferCache::setFrameBufferSize(QSize frameBufferSize) {
@@ -23,6 +26,12 @@ void FramebufferCache::setFrameBufferSize(QSize frameBufferSize) {
         _frameBufferSize = frameBufferSize;
         {
             std::unique_lock<std::mutex> lock(_mutex);
+            // TODO: Remove after testing
+            {
+                for (auto& framebuffer : _cachedFramebuffers) {
+                    framebuffer->gpuObject.setGPUObject(nullptr);
+                }
+            }
             _cachedFramebuffers.clear();
         }
     }

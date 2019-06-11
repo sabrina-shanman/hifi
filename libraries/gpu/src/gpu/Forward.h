@@ -118,7 +118,9 @@ namespace gpu {
     };
 
     class GPUObjectPointer {
-    private:
+    // TODO: Revert after testing
+    public:
+    //private:
         using GPUObjectUniquePointer = std::unique_ptr<GPUObject>;
 
         // This shouldn't be used by anything else than the Backend class with the proper casting.
