@@ -194,9 +194,11 @@ EntityItemID EntityTreeElement::evalDetailedRayIntersection(const glm::vec3& ori
                                     const QVector<EntityItemID>& entityIdsToInclude, const QVector<EntityItemID>& entityIDsToDiscard,
                                     PickFilter searchFilter, QVariantMap& extraInfo) {
 
+    PROFILE_RANGE(script_entities, __FUNCTION__); // TODO: Remove after testing
     // only called if we do intersect our bounding cube, but find if we actually intersect with entities...
     EntityItemID entityID;
-    forEachEntity([&](EntityItemPointer entity) {
+    forEachEntity([&](EntityItemPointer& entity) {
+        PROFILE_RANGE(script_entities, "for each entity"); // TODO: Remove after testing
         if (entity->getIgnorePickIntersection()) {
             return;
         }
@@ -218,8 +220,17 @@ EntityItemID EntityTreeElement::evalDetailedRayIntersection(const glm::vec3& ori
             return;
         }
 
+        glm::mat4 rotation; // TODO: Remove after testing
+        AABox entityFrameBox; // TODO: Remove after testing
+        glm::vec3 entityFrameOrigin; // TODO: Remove after testing
+        glm::vec3 entityFrameDirection; // TODO: Remove after testing
+        { // TODO: Remove after testing
+        PROFILE_RANGE(script_entities, "entity property gets"); // TODO: Remove after testing
+
         // extents is the entity relative, scaled, centered extents of the entity
-        glm::mat4 rotation = glm::mat4_cast(entity->getWorldOrientation());
+        // TODO: Restore after testing
+        rotation = glm::mat4_cast(entity->getWorldOrientation());
+        //glm::mat4 rotation = glm::mat4_cast(entity->getWorldOrientation());
         glm::mat4 translation = glm::translate(entity->getWorldPosition());
         glm::mat4 entityToWorldMatrix = translation * rotation;
         glm::mat4 worldToEntityMatrix = glm::inverse(entityToWorldMatrix);
@@ -228,10 +239,22 @@ EntityItemID EntityTreeElement::evalDetailedRayIntersection(const glm::vec3& ori
         glm::vec3 registrationPoint = entity->getRegistrationPoint();
         glm::vec3 corner = -(dimensions * registrationPoint);
 
-        AABox entityFrameBox(corner, dimensions);
+        // TODO: Restore after testing
+        entityFrameBox = { corner, dimensions };
+        //AABox entityFrameBox(corner, dimensions);
 
-        glm::vec3 entityFrameOrigin = glm::vec3(worldToEntityMatrix * glm::vec4(origin, 1.0f));
-        glm::vec3 entityFrameDirection = glm::vec3(worldToEntityMatrix * glm::vec4(direction, 0.0f));
+        // TODO: Restore after testing
+        entityFrameOrigin = glm::vec3(worldToEntityMatrix * glm::vec4(origin, 1.0f));
+        //glm::vec3 entityFrameOrigin = glm::vec3(worldToEntityMatrix * glm::vec4(origin, 1.0f));
+        // TODO: Restore after testing
+        entityFrameDirection = glm::vec3(worldToEntityMatrix * glm::vec4(direction, 0.0f));
+        //glm::vec3 entityFrameDirection = glm::vec3(worldToEntityMatrix * glm::vec4(direction, 0.0f));
+
+        } // TODO: Remove after testing
+
+
+        { // TODO: Remove after testing
+        PROFILE_RANGE(script_entities, "entity ray test"); // TODO: Remove after testing
 
         // we can use the AABox's ray intersection by mapping our origin and direction into the entity frame
         // and testing intersection there.
@@ -267,6 +290,8 @@ EntityItemID EntityTreeElement::evalDetailedRayIntersection(const glm::vec3& ori
                 }
             }
         }
+
+        } // TODO: Remove after testing
     });
     return entityID;
 }

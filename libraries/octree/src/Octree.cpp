@@ -35,6 +35,9 @@
 #include <QRegularExpression>
 #include <QRegularExpressionMatch>
 
+// TODO: Remove after testing
+#include <Profile.h>
+
 #include <GeometryUtil.h>
 #include <Gzip.h>
 #include <LogHandler.h>
@@ -99,6 +102,7 @@ void Octree::recurseTreeWithOperationSorted(const RecurseOctreeOperation& operat
 // Recurses voxel element with an operation function, calling operation on its children in a specific order
 bool Octree::recurseElementWithOperationSorted(const OctreeElementPointer& element, const RecurseOctreeOperation& operation,
                                                const RecurseOctreeSortingOperation& sortingOperation, void* extraData, int recursionCount) {
+    PROFILE_RANGE(simulation, __FUNCTION__); // TODO: Remove after testing
     if (recursionCount > DANGEROUSLY_DEEP_RECURSION) {
         HIFI_FCDEBUG(octree(), "Octree::recurseElementWithOperationSorted() reached DANGEROUSLY_DEEP_RECURSION, bailing!");
         // If we go too deep, we want to keep searching other paths
@@ -108,6 +112,10 @@ bool Octree::recurseElementWithOperationSorted(const OctreeElementPointer& eleme
     bool keepSearching = operation(element, extraData);
 
     std::vector<SortedChild> sortedChildren;
+
+    { // TODO: Remove after testing
+    PROFILE_RANGE(simulation, "sorting op"); // TODO: Remove after testing
+
     for (int i = 0; i < NUMBER_OF_CHILDREN; i++) {
         OctreeElementPointer child = element->getChildAtIndex(i);
         if (child) {
@@ -118,10 +126,17 @@ bool Octree::recurseElementWithOperationSorted(const OctreeElementPointer& eleme
         }
     }
 
+    } // TODO: Remove after testing
+
+    { // TODO: Remove after testing
+    PROFILE_RANGE(simulation, "sort children"); // TODO: Remove after testing
+
     if (sortedChildren.size() > 1) {
         static auto comparator = [](const SortedChild& left, const SortedChild& right) { return left.first < right.first; };
         std::sort(sortedChildren.begin(), sortedChildren.end(), comparator);
     }
+
+    } // TODO: Remove after testing
 
     for (auto it = sortedChildren.begin(); it != sortedChildren.end(); ++it) {
         const SortedChild& sortedChild = *it;

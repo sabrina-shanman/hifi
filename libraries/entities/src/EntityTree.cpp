@@ -836,6 +836,7 @@ EntityItemID EntityTree::evalRayIntersection(const glm::vec3& origin, const glm:
             searchFilter, element, distance, face, surfaceNormal, extraInfo, EntityItemID() };
     distance = FLT_MAX;
 
+    PROFILE_RANGE(simulation, "evalRayIntersection"); // TODO: Remove after testing
     bool requireLock = lockType == Octree::Lock;
     bool lockResult = withReadLock([&]{
         recurseTreeWithOperationSorted(evalRayIntersectionOp, evalRayIntersectionSortingOp, &args);
@@ -914,6 +915,7 @@ EntityItemID EntityTree::evalParabolaIntersection(const PickParabola& parabola,
     parabolicDistance = FLT_MAX;
     distance = FLT_MAX;
 
+    PROFILE_RANGE(simulation, "evalParabolaIntersection"); // TODO: Remove after testing
     bool requireLock = lockType == Octree::Lock;
     bool lockResult = withReadLock([&] {
         recurseTreeWithOperationSorted(evalParabolaIntersectionOp, evalParabolaIntersectionSortingOp, &args);
