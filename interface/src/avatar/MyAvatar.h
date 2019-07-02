@@ -2665,6 +2665,8 @@ private:
     glm::vec3 _goToPosition;
     glm::quat _goToOrientation;
 
+    void goToSafeLandingLocation(const glm::vec3& position);
+
     std::unordered_set<int> _headBoneSet;
     std::unordered_set<SpatiallyNestablePointer> _cauterizedChildrenOfHead;
     bool _prevShouldDrawHead;

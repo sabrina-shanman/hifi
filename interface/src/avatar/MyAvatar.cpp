@@ -3893,6 +3893,15 @@ void MyAvatar::goToLocationAndEnableCollisions(const glm::vec3& position) { // S
     goToLocation(position);
     QMetaObject::invokeMethod(this, "setCollisionsEnabled", Qt::QueuedConnection, Q_ARG(bool, true));
 }
+
+void MyAvatar::goToSafeLandingLocation(const glm::vec3& position) {
+    // If a script has asked to go to a different position, do not override that.
+    // Decide what to do at the new location next update.
+    if (!_goToPending) {
+        goToLocationAndEnableCollisions(position);
+    }
+}
+
 bool MyAvatar::safeLanding(const glm::vec3& position) {
     // Considers all collision hull or non-collisionless primitive intersections on a vertical line through the point.
     // There needs to be a "landing" if:
@@ -3918,7 +3927,7 @@ bool MyAvatar::safeLanding(const glm::vec3& position) {
      } else { // If you try to go while stuck, physics will keep you stuck.
         setCollisionsEnabled(false);
         // Don't goToLocation just yet. Yield so that physics can act on the above.
-        QMetaObject::invokeMethod(this, "goToLocationAndEnableCollisions", Qt::QueuedConnection, // The equivalent of javascript nextTick
+        QMetaObject::invokeMethod(this, "goToSafeLandingLocation", Qt::QueuedConnection, // The equivalent of javascript nextTick
             Q_ARG(glm::vec3, better));
      }
      return true;
