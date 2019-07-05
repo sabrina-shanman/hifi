@@ -43,30 +43,35 @@ public:
 
     void setDrawDialog(DrawStep step, BOOL isUpdate = FALSE);
 
-
 // Dialog Data
 #ifdef AFX_DESIGN_TIME
     enum { IDD = IDD_LAUNCHER_DIALOG };
 #endif
 
-    protected:
+// Implementation
+protected:
     virtual void DoDataExchange(CDataExchange* pDX);    // DDX/DDV support
     void startProcess();
     void setCustomDialog();
 
-// Implementation
-protected:
+    void setVerticalElement(CWnd* element, int verticalOffset, int heightOffset = 0, bool fromMainWindowBottom = true);
 
     BOOL getHQInfo(const CString& orgname);
     DrawStep _drawStep { DrawStep::DrawLogo };
     BOOL getTextFormat(int ResID, TextFormat& formatOut);
     void showWindows(std::vector<CStatic*> windows, bool show);
+    POINT getMouseCoords(MSG* pMsg);
 
-    bool _isConsoleRunning{ false };
-    bool _isInstalling{ false };
-    bool _isFirstDraw{ false };
-    bool _showSplash{ true };
-    int _splashStep{ 0 };
+
+    bool _isConsoleRunning { false };
+    bool _isInstalling { false };
+    bool _isFirstDraw { false };
+    bool _showSplash { true };
+    
+    bool _draggingWindow { false };
+    POINT _dragOffset;
+
+    int _splashStep { 0 };
     float _logoRotation { 0.0f };
 
     HICON m_hIcon;
@@ -100,7 +105,6 @@ protected:
     void prepareLogin(DrawStep step);
     void prepareProcess(DrawStep step);
     void prepareChoose();
-    void prepareError();
 
     void redrawBanner(const CEdit& edit, CStatic* banner);
 
