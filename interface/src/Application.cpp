@@ -6516,7 +6516,9 @@ void Application::update(float deltaTime) {
                 avatarManager->handleProcessedPhysicsTransaction(transaction);
 
                 myAvatar->prepareForPhysicsSimulation();
-                _physicsEngine->enableGlobalContactAddedCallback(myAvatar->isFlying());
+                // TODO: Revert after testing
+                //_physicsEngine->enableGlobalContactAddedCallback(myAvatar->isFlying());
+                _physicsEngine->enableGlobalContactAddedCallback(false);
             }
         }
 

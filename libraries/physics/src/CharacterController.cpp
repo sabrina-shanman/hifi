@@ -465,6 +465,9 @@ void CharacterController::setLocalBoundingBox(const glm::vec3& minCorner, const 
         // update CCD with new _radius
         _rigidBody->setCcdSweptSphereRadius(_radius);
         _rigidBody->setCcdMotionThreshold(_radius);
+        // TODO: Remove after testing
+        _rigidBody->setCcdSweptSphereRadius(0.0f);
+        _rigidBody->setCcdMotionThreshold(0.0f);
     }
 }
 

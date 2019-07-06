@@ -3891,7 +3891,9 @@ void MyAvatar::goToLocation(const glm::vec3& newPosition,
 
 void MyAvatar::goToLocationAndEnableCollisions(const glm::vec3& position) { // See use case in safeLanding.
     goToLocation(position);
-    QMetaObject::invokeMethod(this, "setCollisionsEnabled", Qt::QueuedConnection, Q_ARG(bool, true));
+    // TODO: Revert after testing
+    setCollisionsEnabled(true);
+    //QMetaObject::invokeMethod(this, "setCollisionsEnabled", Qt::QueuedConnection, Q_ARG(bool, true));
 }
 
 void MyAvatar::goToSafeLandingLocation(const glm::vec3& position) {
