@@ -22,6 +22,12 @@
 
 (function() { // BEGIN LOCAL_SCOPE
 
+// If we are in simplified UI, we don't need desktop grabbing.
+// So, disable for now to improve performance.
+if (Settings.getValue("simplifiedUI/keepExistingUIAndScripts") === false) {
+    return;
+}
+
 Script.include("/~/system/libraries/utils.js");
 Script.include("/~/system/libraries/controllerDispatcherUtils.js");
 
