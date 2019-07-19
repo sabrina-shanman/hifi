@@ -14,8 +14,10 @@
 
 var currentlyRunningScripts = ScriptDiscoveryService.getRunning();
 
-// Make sure this setting is defined early so grab.js can decide whether it should run
-Settings.getValue("simplifiedUI/keepExistingUIAndScripts", false);
+// Make sure this setting is defined early so grab.js can decide whether it should run, regardless of the order in which the default scripts are loaded
+if (Settings.getValue("simplifiedUI/keepExistingUIAndScripts") === "") {
+    Settings.setValue("simplifiedUI/keepExistingUIAndScripts", false);
+}
 
 var DEFAULT_SCRIPTS_SEPARATE = [
     "system/controllers/controllerScripts.js",
