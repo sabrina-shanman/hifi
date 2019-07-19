@@ -24,7 +24,7 @@
 
 // If we are in simplified UI, we don't need desktop grabbing.
 // So, disable for now to improve performance.
-if (Settings.getValue("simplifiedUI/keepExistingUIAndScripts") === false) {
+if (Settings.getValue("simplifiedUI/keepExistingUIAndScripts", true) === false) {
     return;
 }
 
