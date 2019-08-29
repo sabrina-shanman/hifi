@@ -51,6 +51,10 @@ void Transaction::updateItem(ItemID id, const UpdateFunctorPointer& functor) {
     _updatedItems.emplace_back(id, functor);
 }
 
+void Transaction::updateItem(ItemID id) {
+    _updatedItems.emplace_back(id, nullptr);
+}
+
 void Transaction::resetSelection(const Selection& selection) {
     _resetSelections.emplace_back(selection);
 }

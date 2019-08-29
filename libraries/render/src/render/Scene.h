@@ -54,7 +54,7 @@ public:
         updateItem(id, std::make_shared<UpdateFunctor<T>>(func));
     }
     void updateItem(ItemID id, const UpdateFunctorPointer& functor);
-    void updateItem(ItemID id) { updateItem(id, nullptr); }
+    void updateItem(ItemID id);
 
     // Transition (applied to an item) transactions
     void resetTransitionOnItem(ItemID id, Transition::Type transition, ItemID boundId = render::Item::INVALID_ITEM_ID);
