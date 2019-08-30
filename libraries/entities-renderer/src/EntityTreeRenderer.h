@@ -248,6 +248,7 @@ private:
     std::unordered_set<EntityItemID> _changedEntities;
 
     std::unordered_set<EntityRendererPointer> _renderablesToUpdate;
+    mutable std::mutex _entitiesInSceneLock;
     std::unordered_map<EntityItemID, EntityRendererPointer> _entitiesInScene;
     std::unordered_map<EntityItemID, EntityItemWeakPointer> _entitiesToAdd;
 

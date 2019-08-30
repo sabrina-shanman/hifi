@@ -125,6 +125,7 @@ EntityTreeRenderer::~EntityTreeRenderer() {
 }
 
 EntityRendererPointer EntityTreeRenderer::renderableForEntityId(const EntityItemID& id) const {
+    std::lock_guard<std::mutex> lock(_entitiesInSceneLock);
     auto itr = _entitiesInScene.find(id);
     if (itr == _entitiesInScene.end()) {
         return EntityRendererPointer();
@@ -218,28 +219,32 @@ void EntityTreeRenderer::stopDomainAndNonOwnedEntities() {
 }
 
 void EntityTreeRenderer::clearDomainAndNonOwnedEntities() {
-    stopDomainAndNonOwnedEntities();
+stopDomainAndNonOwnedEntities();
 
     auto sessionUUID = getTree()->getMyAvatarSessionUUID();
     std::unordered_map<EntityItemID, EntityRendererPointer> savedEntities;
     std::unordered_set<EntityRendererPointer> savedRenderables;
     // remove all entities from the scene
-    auto scene = _viewState->getMain3DScene();
-    if (scene) {
-        for (const auto& entry :  _entitiesInScene) {
-            const auto& renderer = entry.second;
-            const EntityItemPointer& entityItem = renderer->getEntity();
-            if (!(entityItem->isLocalEntity() || (entityItem->isAvatarEntity() && entityItem->getOwningAvatarID() == sessionUUID))) {
-                fadeOutRenderable(renderer);
-            } else {
-                savedEntities[entry.first] = entry.second;
-                savedRenderables.insert(entry.second);
+    // TODO: Is it necessary to separate the iteration from the execution here? The script function called looks like low deadlock risk...
+    {
+        std::lock_guard<std::mutex> lock(_entitiesInSceneLock);
+        auto scene = _viewState->getMain3DScene();
+        if (scene) {
+            for (const auto& entry :  _entitiesInScene) {
+                const auto& renderer = entry.second;
+                const EntityItemPointer& entityItem = renderer->getEntity();
+                if (!(entityItem->isLocalEntity() || (entityItem->isAvatarEntity() && entityItem->getOwningAvatarID() == sessionUUID))) {
+                    fadeOutRenderable(renderer);
+                } else {
+                    savedEntities[entry.first] = entry.second;
+                    savedRenderables.insert(entry.second);
+                }
             }
         }
-    }
 
-    _renderablesToUpdate = savedRenderables;
-    _entitiesInScene = savedEntities;
+        _renderablesToUpdate = savedRenderables;
+        _entitiesInScene = savedEntities;
+    }
 
     if (_layeredZones.clearDomainAndNonOwnedZones(sessionUUID)) {
         applyLayeredZones();
@@ -259,30 +264,33 @@ void EntityTreeRenderer::clear() {
 
     // reset the engine
     auto scene = _viewState->getMain3DScene();
-    if (_shuttingDown) {
-        if (scene) {
-            render::Transaction transaction;
-            for (const auto& entry :  _entitiesInScene) {
-                const auto& renderer = entry.second;
-                renderer->removeFromScene(scene, transaction);
-            }
-            scene->enqueueTransaction(transaction);
-        }
-    } else {
-        if (_wantScripts) {
-            resetEntitiesScriptEngine();
-        }
-        if (scene) {
-            for (const auto& entry :  _entitiesInScene) {
-                const auto& renderer = entry.second;
-                fadeOutRenderable(renderer);
+    {
+        std::lock_guard<std::mutex> lock(_entitiesInSceneLock);
+        if (_shuttingDown) {
+            if (scene) {
+                render::Transaction transaction;
+                for (const auto& entry :  _entitiesInScene) {
+                    const auto& renderer = entry.second;
+                    renderer->removeFromScene(scene, transaction);
+                }
+                scene->enqueueTransaction(transaction);
             }
         } else {
-            qCWarning(entitiesrenderer) << "EntitityTreeRenderer::clear(), Unexpected null scene";
+            if (_wantScripts) {
+                resetEntitiesScriptEngine();
+            }
+            if (scene) {
+                for (const auto& entry :  _entitiesInScene) {
+                    const auto& renderer = entry.second;
+                    fadeOutRenderable(renderer);
+                }
+            } else {
+                qCWarning(entitiesrenderer) << "EntitityTreeRenderer::clear(), Unexpected null scene";
+            }
         }
+        _entitiesInScene.clear();
+        _renderablesToUpdate.clear();
     }
-    _entitiesInScene.clear();
-    _renderablesToUpdate.clear();
 
     // reset the zone to the default (while we load the next scene)
     _layeredZones.clear();
@@ -296,12 +304,21 @@ void EntityTreeRenderer::clear() {
 void EntityTreeRenderer::reloadEntityScripts() {
     _entitiesScriptEngine->unloadAllEntityScripts();
     _entitiesScriptEngine->resetModuleCache();
-    for (const auto& entry : _entitiesInScene) {
-        const auto& renderer = entry.second;
-        const auto& entity = renderer->getEntity();
-        if (!entity->getScript().isEmpty()) {
-            _entitiesScriptEngine->loadEntityScript(entity->getEntityItemID(), resolveScriptURL(entity->getScript()), true);
+    // To avoid deadlocks with scripts accessing
+    std::vector<EntityItemPointer> entitiesWithScripts;
+    entitiesWithScripts.reserve(_entitiesInScene.size());
+    {
+        std::lock_guard<std::mutex> lock(_entitiesInSceneLock);
+        for (const auto& entry : _entitiesInScene) {
+            const auto& renderer = entry.second;
+            const auto& entity = renderer->getEntity();
+            if (!entity->getScript().isEmpty()) {
+                entitiesWithScripts.push_back(entity);
+            }
         }
+    }
+    for (const auto& entity : entitiesWithScripts) {
+        _entitiesScriptEngine->loadEntityScript(entity->getEntityItemID(), resolveScriptURL(entity->getScript()), true);
     }
 }
 
