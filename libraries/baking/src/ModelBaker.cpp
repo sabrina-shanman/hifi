@@ -11,6 +11,8 @@
 
 #include "ModelBaker.h"
 
+#include <QTimer>
+
 #include <PathUtils.h>
 #include <NetworkAccessManager.h>
 
@@ -152,6 +154,28 @@ void ModelBaker::saveSourceModel() {
         emit modelLoaded();
     } else {
         // remote file, kick off a download
+        attemptModelNetworkRequest();
+    }
+
+    if (_mappingURL.isEmpty()) {
+        outputUnbakedFST();
+    }
+}
+
+void ModelBaker::attemptModelNetworkRequest() {
+    _modelRequest = std::make_unique<BakeResourceRequest>(_modelURL);
+    qCDebug(model_baking) << "Downloading" << _modelURL;
+    _modelRequest->attemptRequest();
+}
+
+ModelBaker::BakeResourceRequest::BakeResourceRequest(const QUrl& url) :
+    _url(url) {
+}
+
+void ModelBaker::BakeResourceRequest::attemptRequest() {
+    if (_attemptsRemaining == 0) {
+        emit finished();
+    } else {
         auto& networkAccessManager = NetworkAccessManager::getInstance();
 
         QNetworkRequest networkRequest;
@@ -161,16 +185,29 @@ void ModelBaker::saveSourceModel() {
         networkRequest.setAttribute(QNetworkRequest::CacheLoadControlAttribute, QNetworkRequest::AlwaysNetwork);
         networkRequest.setHeader(QNetworkRequest::UserAgentHeader, HIGH_FIDELITY_USER_AGENT);
 
-        networkRequest.setUrl(_modelURL);
+        networkRequest.setUrl(_url);
 
-        qCDebug(model_baking) << "Downloading" << _modelURL;
         auto networkReply = networkAccessManager.get(networkRequest);
 
-        connect(networkReply, &QNetworkReply::finished, this, &ModelBaker::handleModelNetworkReply);
+        connect(networkReply, &QNetworkReply::finished, this, &ModelBaker::BakeResourceRequest::handleNetworkReply);
     }
+}
 
-    if (_mappingURL.isEmpty()) {
-        outputUnbakedFST();
+void ModelBaker::BakeResourceRequest::handleNetworkReply() {
+    auto requestReply = qobject_cast<QNetworkReply*>(sender());
+    _error = requestReply->error();
+
+    if (requestReply->error() == QNetworkReply::NoError) {
+        _data = requestReply->readAll();
+        emit finished;
+    } else {
+        --_attemptsRemaining;
+        if (_attemptsRemaining == 0) {
+            emit finished();
+        } else {
+            qCDebug(model_baking) << "Downloading" << _url << "failed with error" << _error << "," << _attemptsRemaining << "attempts remaining";
+            QTimer::singleShot(_attemptIntervalMS, this, ModelBaker::BakeResourceRequest::attemptRequest);
+        }
     }
 }
 
@@ -202,7 +239,7 @@ void ModelBaker::handleModelNetworkReply() {
         emit modelLoaded();
     } else {
         // add an error to our list stating that the model could not be downloaded
-        handleError("Failed to download " + _modelURL.toString());
+        handleError("Failed to download '" + _modelURL.toString() + "': QNetworkReply error: " + QString::number((int)requestReply->error()) + " (not an HTTP error code)");
     }
 }
 

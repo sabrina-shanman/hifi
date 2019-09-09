@@ -63,7 +63,34 @@ public slots:
     virtual void abort() override;
 
 protected:
+    class BakeResourceRequest : public QObject {
+        Q_OBJECT
+
+    public:
+        BakeResourceRequest(const QUrl& url);
+        QNetworkReply::NetworkError getError();
+        QByteArray getData();
+
+    signals:
+        void finished();
+
+    public slots:
+        void attemptRequest();
+
+    protected:
+        QUrl _url;
+        int _attemptsRemaining { 10 };
+        int _attemptIntervalMS { 5000 };
+
+        QNetworkReply::NetworkError _error;
+        QByteArray _data;
+
+    protected slots:
+        void handleNetworkReply();
+    };
+
     void saveSourceModel();
+    void attemptModelNetworkRequest();
     virtual void bakeProcessedSource(const hfm::Model::Pointer& hfmModel, const std::vector<hifi::ByteArray>& dracoMeshes, const std::vector<std::vector<hifi::ByteArray>>& dracoMaterialLists) = 0;
     void exportScene();
 
@@ -78,6 +105,8 @@ protected:
     QString _originalOutputModelPath;
     QString _outputMappingURL;
     QUrl _bakedModelURL;
+
+    std::unique_ptr<BakeResourceRequest> _modelRequest;
 
 protected slots:
     void handleModelNetworkReply();
