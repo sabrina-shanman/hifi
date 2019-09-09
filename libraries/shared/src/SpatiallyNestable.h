@@ -193,7 +193,7 @@ public:
 
     bool hasAncestorOfType(NestableType nestableType, int depth = 0) const;
     const QUuid findAncestorOfType(NestableType nestableType, int depth = 0) const;
-    SpatiallyNestablePointer getParentPointer(bool& success) const;
+    virtual SpatiallyNestablePointer getParentPointer(bool& success) const;
     static SpatiallyNestablePointer findByID(QUuid id, bool& success);
 
     void getLocalTransformAndVelocities(Transform& localTransform,

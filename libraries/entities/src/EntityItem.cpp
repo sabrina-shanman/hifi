@@ -75,6 +75,19 @@ EntityItem::~EntityItem() {
     assert(!_physicsInfo);
 }
 
+SpatiallyNestablePointer EntityItem::getParentPointer(bool& success) const {
+    if (getEntityHostType() == entity::HostType::AVATAR) {
+        SpatiallyNestablePointer parent = _parent.lock();
+        if (parent && getParentID().isNull()) {
+            // Parented to MyAvatar when not connected to a server
+            success = true;
+            return parent;
+        }
+    }
+
+    return SpatiallyNestable::getParentPointer(success);
+}
+
 EntityPropertyFlags EntityItem::getEntityProperties(EncodeBitstreamParams& params) const {
     EntityPropertyFlags requestedProperties;
 

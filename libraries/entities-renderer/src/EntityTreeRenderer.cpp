@@ -338,7 +338,7 @@ void EntityTreeRenderer::addPendingEntities(const render::ScenePointer& scene, r
     // weird compilation error related to EntityItemID assignment operators
     for (auto itr = _entitiesToAdd.begin(); _entitiesToAdd.end() != itr; ) {
         if (itr->second.expired()) {
-            _entitiesToAdd.erase(itr++);
+            itr = _entitiesToAdd.erase(itr);
         } else {
             ++itr;
         }

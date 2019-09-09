@@ -221,6 +221,9 @@ function createEmoji(emojiFilename) {
         "alpha": 1,
         "grab": { "grabbable": false }
     }, "avatar");
+
+    // TODO: Remove after testing
+    console.log("[simplifiedEmoji.js/customdebug] Adding emoji: " + JSON.stringify(currentEmoji));
         
     maybePlayPop("in");
     beginCountDownTimer();

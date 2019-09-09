@@ -73,7 +73,7 @@ void EntityEditPacketSender::queueEditEntityMessage(PacketType type,
     if (properties.getEntityHostType() == entity::HostType::AVATAR) {
         if (!_myAvatar) {
             qCWarning(entities) << "Suppressing entity edit message: cannot send avatar entity edit with no myAvatar";
-        } else if (properties.getOwningAvatarID() == _myAvatar->getID()) {
+        } else if (properties.getOwningAvatarID() == _myAvatar->getID() || properties.getOwningAvatarID().isNull()) {
             // this is an avatar-based entity --> update our avatar-data rather than sending to the entity-server
             queueEditAvatarEntityMessage(entityTree, entityItemID);
         } else {
