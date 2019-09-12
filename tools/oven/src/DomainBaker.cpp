@@ -159,6 +159,7 @@ void DomainBaker::addModelBaker(const QString& property, const QString& url, con
                 //       Url suffix is still propagated to the baked URL if the input URL is an FST.
                 //       Url suffix has always been stripped from the URL when loading the original model file to be baked.
                 baker->setOutputURLSuffix(url);
+                baker->setShouldQuantizeGeometry(_shouldQuantizeGeometry);
 
                 // make sure our handler is called when the baker is done
                 connect(baker.data(), &Baker::finished, this, &DomainBaker::handleFinishedModelBaker);

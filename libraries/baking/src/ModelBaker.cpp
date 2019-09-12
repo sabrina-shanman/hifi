@@ -20,6 +20,7 @@
 
 #include <model-baker/Baker.h>
 #include <model-baker/PrepareJointsTask.h>
+#include <model-baker/BuildDracoMeshTask.h>
 
 #include <FBXWriter.h>
 #include <FSTReader.h>
@@ -239,7 +240,9 @@ void ModelBaker::bakeSourceCopy() {
         baker::Baker baker(loadedModel, serializerMapping, _mappingURL);
         auto config = baker.getConfiguration();
         // Enable compressed draco mesh generation
-        config->getJobConfig("BuildDracoMesh")->setEnabled(true);
+        auto buildDracoMeshConfig = (BuildDracoMeshConfig*)config->getJobConfig("BuildDracoMesh");
+        buildDracoMeshConfig->setEnabled(true);
+        buildDracoMeshConfig->setQuantized(_shouldQuantizeGeometry);
         // Do not permit potentially lossy modification of joint data meant for runtime
         ((PrepareJointsConfig*)config->getJobConfig("PrepareJoints"))->passthrough = true;
     

@@ -21,7 +21,6 @@ int main (int argc, char** argv) {
     // figure out if we're launching our GUI application or just the simple command line interface
     if (argc > 1) {
         OvenCLIApplication::parseCommandLine(argc, argv);
-
         // init the settings interface so we can save and load settings
         Setting::init();
 

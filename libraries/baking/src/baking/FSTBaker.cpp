@@ -84,6 +84,7 @@ void FSTBaker::bakeSourceCopy() {
     _modelBaker->setMapping(_mapping);
     // Hold on to the old url userinfo/query/fragment data so ModelBaker::getFullOutputMappingURL retains that data from the original model URL
     _modelBaker->setOutputURLSuffix(modelURL);
+    _modelBaker->setShouldQuantizeGeometry(_shouldQuantizeGeometry);
 
     connect(_modelBaker.get(), &ModelBaker::aborted, this, &FSTBaker::handleModelBakerAborted);
     connect(_modelBaker.get(), &ModelBaker::finished, this, &FSTBaker::handleModelBakerFinished);

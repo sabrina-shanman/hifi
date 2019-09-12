@@ -13,6 +13,7 @@
 #define hifi_ModelBakeWidget_h
 
 #include <QtWidgets/QWidget>
+#include <QCheckBox>
 
 #include <SettingHandle.h>
 
@@ -41,6 +42,7 @@ private:
 
     QLineEdit* _modelLineEdit;
     QLineEdit* _outputDirLineEdit;
+    QCheckBox* _quantizeGeometryCheckBox;
 
     Setting::Handle<QString> _exportDirectory;
     Setting::Handle<QString> _modelStartDirectory;

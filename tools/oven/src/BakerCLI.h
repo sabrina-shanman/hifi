@@ -19,7 +19,8 @@
 #include <memory>
 
 #include "Baker.h"
-#include "OvenCLIApplication.h"
+
+class OvenCLIApplication;
 
 static const int OVEN_STATUS_CODE_SUCCESS { 0 };
 static const int OVEN_STATUS_CODE_FAIL { 1 };
@@ -33,6 +34,8 @@ class BakerCLI : public QObject {
 public:
     BakerCLI(OvenCLIApplication* parent);
 
+    void setShouldQuantizeGeometry(bool shouldQuantizeGeometry) { _shouldQuantizeGeometry = shouldQuantizeGeometry; }
+
 public slots:
     void bakeFile(QUrl inputUrl, const QString& outputPath, const QString& type = QString::null);
 
@@ -41,6 +44,7 @@ private slots:
 
 private:
     QDir _outputPath;
+    bool _shouldQuantizeGeometry { true };
     std::unique_ptr<Baker> _baker;
 };
 

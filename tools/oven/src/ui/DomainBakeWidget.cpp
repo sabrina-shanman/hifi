@@ -129,6 +129,10 @@ void DomainBakeWidget::setupUI() {
     // setup a checkbox to allow re-baking of original assets
     _rebakeOriginalsCheckBox = new QCheckBox("Re-bake originals");
     gridLayout->addWidget(_rebakeOriginalsCheckBox, rowIndex, 0);
+    // add checkbox to allow disabling quantization during draco compression to reduce z-fighting/texture smearing
+    _quantizeGeometryCheckBox = new QCheckBox("Quantize geometry");
+    _quantizeGeometryCheckBox->setChecked(true);
+    gridLayout->addWidget(_quantizeGeometryCheckBox, rowIndex, 1);
 
     // add a button that will kickoff the bake
     QPushButton* bakeButton = new QPushButton("Bake");
@@ -214,6 +218,7 @@ void DomainBakeWidget::bakeButtonClicked() {
                                 outputDirectory.absolutePath(), _destinationPathLineEdit->text(),
                                 _rebakeOriginalsCheckBox->isChecked())
         };
+        domainBaker->setShouldQuantizeGeometry(_quantizeGeometryCheckBox->isChecked());
 
         // make sure we hear from the baker when it is done
         connect(domainBaker.get(), &DomainBaker::finished, this, &DomainBakeWidget::handleFinishedBaker);

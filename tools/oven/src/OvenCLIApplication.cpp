@@ -23,16 +23,19 @@ static const QString CLI_INPUT_PARAMETER = "i";
 static const QString CLI_OUTPUT_PARAMETER = "o";
 static const QString CLI_TYPE_PARAMETER = "t";
 static const QString CLI_DISABLE_TEXTURE_COMPRESSION_PARAMETER = "disable-texture-compression";
+static const QString CLI_DISABLE_DRACO_QUANTIZATION_PARAMETER = "disable-draco-quantization";
 
 QUrl OvenCLIApplication::_inputUrlParameter;
 QUrl OvenCLIApplication::_outputUrlParameter;
 QString OvenCLIApplication::_typeParameter;
+bool OvenCLIApplication::_shouldQuantizeGeometry = true;
 
 OvenCLIApplication::OvenCLIApplication(int argc, char* argv[]) :
     QCoreApplication(argc, argv)
 {
-    BakerCLI* cli = new BakerCLI(this);
-    QMetaObject::invokeMethod(cli, "bakeFile", Qt::QueuedConnection, Q_ARG(QUrl, _inputUrlParameter),
+    _bakerCLI = std::make_unique<BakerCLI>(this);
+    _bakerCLI->setShouldQuantizeGeometry(_shouldQuantizeGeometry);
+    QMetaObject::invokeMethod(_bakerCLI.get(), "bakeFile", Qt::QueuedConnection, Q_ARG(QUrl, _inputUrlParameter),
                               Q_ARG(QString, _outputUrlParameter.toString()), Q_ARG(QString, _typeParameter));
 }
 
@@ -45,7 +48,8 @@ void OvenCLIApplication::parseCommandLine(int argc, char* argv[]) {
         { CLI_INPUT_PARAMETER, "Path to file that you would like to bake.", "input" },
         { CLI_OUTPUT_PARAMETER, "Path to folder that will be used as output.", "output" },
         { CLI_TYPE_PARAMETER, "Type of asset. [model|material]"/*|js]"*/, "type" },
-        { CLI_DISABLE_TEXTURE_COMPRESSION_PARAMETER, "Disable texture compression." }
+        { CLI_DISABLE_TEXTURE_COMPRESSION_PARAMETER, "Disable texture compression." },
+        { CLI_DISABLE_DRACO_QUANTIZATION_PARAMETER, "Disable draco quantization." }
     });
 
     auto versionOption = parser.addVersionOption();
@@ -88,5 +92,10 @@ void OvenCLIApplication::parseCommandLine(int argc, char* argv[]) {
     if (parser.isSet(CLI_DISABLE_TEXTURE_COMPRESSION_PARAMETER)) {
         qDebug() << "Disabling texture compression";
         TextureBaker::setCompressionEnabled(false);
+    }
+
+    _shouldQuantizeGeometry = !parser.isSet(CLI_DISABLE_DRACO_QUANTIZATION_PARAMETER);
+    if (!_shouldQuantizeGeometry) {
+        qDebug() << "Disabling draco quantization";
     }
 }

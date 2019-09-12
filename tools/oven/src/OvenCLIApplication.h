@@ -15,6 +15,7 @@
 #include <QtCore/QCoreApplication>
 
 #include "Oven.h"
+#include "BakerCLI.h"
 
 class OvenCLIApplication : public QCoreApplication, public Oven {
     Q_OBJECT
@@ -25,10 +26,14 @@ public:
 
     static OvenCLIApplication* instance() { return dynamic_cast<OvenCLIApplication*>(QCoreApplication::instance()); }
 
+protected:
+    std::unique_ptr<BakerCLI> _bakerCLI;
+
 private:
     static QUrl _inputUrlParameter;
     static QUrl _outputUrlParameter;
     static QString _typeParameter;
+    static bool _shouldQuantizeGeometry;
 };
 
 #endif // hifi_OvenCLIApplication_h

@@ -208,6 +208,7 @@ std::tuple<std::unique_ptr<draco::Mesh>, bool> createDracoMesh(const hfm::Mesh& 
 void BuildDracoMeshTask::configure(const Config& config) {
     _encodeSpeed = config.encodeSpeed;
     _decodeSpeed = config.decodeSpeed;
+    _quantized = config.quantized;
 }
 
 void BuildDracoMeshTask::run(const baker::BakeContextPointer& context, const Input& input, Output& output) {
@@ -243,9 +244,15 @@ void BuildDracoMeshTask::run(const baker::BakeContextPointer& context, const Inp
         if (dracoMesh) {
             draco::Encoder encoder;
 
-            encoder.SetAttributeQuantization(draco::GeometryAttribute::POSITION, 14);
-            encoder.SetAttributeQuantization(draco::GeometryAttribute::TEX_COORD, 12);
-            encoder.SetAttributeQuantization(draco::GeometryAttribute::NORMAL, 10);
+            if (_quantized) {
+                encoder.SetAttributeQuantization(draco::GeometryAttribute::POSITION, 14);
+                encoder.SetAttributeQuantization(draco::GeometryAttribute::TEX_COORD, 12);
+                encoder.SetAttributeQuantization(draco::GeometryAttribute::NORMAL, 10);
+            } else {
+                encoder.SetAttributeQuantization(draco::GeometryAttribute::POSITION, 0);
+                encoder.SetAttributeQuantization(draco::GeometryAttribute::TEX_COORD, 0);
+                encoder.SetAttributeQuantization(draco::GeometryAttribute::NORMAL, 0);
+            }
             encoder.SetSpeedOptions(_encodeSpeed, _decodeSpeed);
 
             draco::EncoderBuffer buffer;

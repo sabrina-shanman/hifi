@@ -44,6 +44,7 @@ public:
     void setOutputURLSuffix(const QUrl& urlSuffix);
     void setMappingURL(const QUrl& mappingURL);
     void setMapping(const hifi::VariantHash& mapping);
+    void setShouldQuantizeGeometry(bool shouldQuantizeGeometry) { _shouldQuantizeGeometry = shouldQuantizeGeometry; }
 
     void initializeOutputDirs();
 
@@ -78,6 +79,8 @@ protected:
     QString _originalOutputModelPath;
     QString _outputMappingURL;
     QUrl _bakedModelURL;
+
+    bool _shouldQuantizeGeometry { true };
 
 protected slots:
     void handleModelNetworkReply();

@@ -33,6 +33,8 @@ public:
                 const QString& baseOutputPath, const QUrl& destinationPath,
                 bool shouldRebakeOriginals);
 
+    void setShouldQuantizeGeometry(bool shouldQuantizeGeometry) { _shouldQuantizeGeometry = shouldQuantizeGeometry; }
+
 signals:
     void allModelsFinished();
     void bakeProgress(int baked, int total);
@@ -75,6 +77,7 @@ private:
     int _completedSubBakes { 0 };
 
     bool _shouldRebakeOriginals { false };
+    bool _shouldQuantizeGeometry { true };
 
     void addModelBaker(const QString& property, const QString& url, const QJsonValueRef& jsonRef);
     void addTextureBaker(const QString& property, const QString& url, image::TextureUsage::Type type, const QJsonValueRef& jsonRef);

@@ -51,6 +51,10 @@ void BakerCLI::bakeFile(QUrl inputUrl, const QString& outputPath, const QString&
         if (!bakeableModelURL.isEmpty()) {
             _baker = getModelBaker(bakeableModelURL, outputPath);
             if (_baker) {
+                auto modelBaker = dynamic_cast<ModelBaker*>(_baker.get());
+                if (modelBaker) {
+                    modelBaker->setShouldQuantizeGeometry(_shouldQuantizeGeometry);
+                }
                 _baker->moveToThread(Oven::instance().getNextWorkerThread());
             }
         }

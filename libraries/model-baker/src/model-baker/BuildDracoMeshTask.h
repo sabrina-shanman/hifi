@@ -21,13 +21,28 @@
 // BuildDracoMeshTask is disabled by default
 class BuildDracoMeshConfig : public baker::JobConfig {
     Q_OBJECT
-    Q_PROPERTY(int encodeSpeed MEMBER encodeSpeed)
-    Q_PROPERTY(int decodeSpeed MEMBER decodeSpeed)
+    Q_PROPERTY(int encodeSpeed READ getEncodeSpeed WRITE setEncodeSpeed NOTIFY dirty())
+    Q_PROPERTY(int decodeSpeed READ getDecodeSpeed WRITE setDecodeSpeed NOTIFY dirty())
+    Q_PROPERTY(bool quantized READ isQuantized WRITE setQuantized NOTIFY dirty())
 public:
     BuildDracoMeshConfig() : baker::JobConfig(false) {}
 
+    int getEncodeSpeed() { return encodeSpeed; }
+    int getDecodeSpeed() { return decodeSpeed; }
+    int isQuantized() { return quantized; }
+
+public slots:
+    void setEncodeSpeed(int value) { encodeSpeed = value; emit dirty(); }
+    void setDecodeSpeed(int value) { decodeSpeed = value; emit dirty(); }
+    void setQuantized(bool enabled) { quantized = enabled; emit dirty(); }
+
+signals:
+    void dirty();
+
+public:
     int encodeSpeed { 0 };
     int decodeSpeed { 5 };
+    bool quantized { true };
 };
 
 class BuildDracoMeshTask {
@@ -43,6 +58,7 @@ public:
 protected:
     int _encodeSpeed { 0 };
     int _decodeSpeed { 5 };
+    bool _quantized { true };
 };
 
 #endif // hifi_BuildDracoMeshTask_h

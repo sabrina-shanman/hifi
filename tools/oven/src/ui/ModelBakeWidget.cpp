@@ -93,6 +93,11 @@ void ModelBakeWidget::setupUI() {
     // start a new row for the next component
     ++rowIndex;
 
+    // add checkbox to allow disabling quantization during draco compression to reduce z-fighting/texture smearing
+    _quantizeGeometryCheckBox = new QCheckBox("Quantize geometry");
+    _quantizeGeometryCheckBox->setChecked(true);
+    gridLayout->addWidget(_quantizeGeometryCheckBox, rowIndex, 0);
+
     // add a button that will kickoff the bake
     QPushButton* bakeButton = new QPushButton("Bake");
     connect(bakeButton, &QPushButton::clicked, this, &ModelBakeWidget::bakeButtonClicked);
@@ -183,6 +188,13 @@ void ModelBakeWidget::bakeButtonClicked() {
             std::unique_ptr<Baker> baker = getModelBaker(bakeableModelURL, outputDirectory.path());
             if (baker) {
                 // everything seems to be in place, kick off a bake for this model now
+
+                {
+                    ModelBaker* modelBaker = dynamic_cast<ModelBaker*>(baker.get());
+                    if (modelBaker) {
+                        modelBaker->setShouldQuantizeGeometry(_quantizeGeometryCheckBox->isChecked());
+                    }
+                }
 
                 // move the baker to the FBX baker thread
                 baker->moveToThread(Oven::instance().getNextWorkerThread());
