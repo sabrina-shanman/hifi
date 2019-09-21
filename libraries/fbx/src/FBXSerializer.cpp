@@ -24,6 +24,16 @@
 // TOOL: Uncomment the following line to enable the filtering of all the unkwnon fields of a node so we can break point easily while loading a model with problems...
 //#define DEBUG_FBXSERIALIZER
 
+// TOOL: Uncomment the following line to dump a readable version of the FBX nodes next to the location of read FBX files (Note: Only works with local FBX files)
+#define HIFI_DUMP_FBX
+
+#ifdef HIFI_DUMP_FBX
+#include <QFile>
+#include <QFileInfo>
+#include <QDir>
+#include "FBXToJSON.h"
+#endif // HIFI_DUMP_FBX
+
 using namespace std;
 
 glm::vec3 parseVec3(const QString& string) {
@@ -1672,6 +1682,40 @@ HFMModel::Pointer FBXSerializer::read(const hifi::ByteArray& data, const hifi::V
     buffer.open(QIODevice::ReadOnly);
 
     _rootNode = parseFBX(&buffer);
+
+#ifdef HIFI_DUMP_FBX
+    {
+        FBXToJSON fbxToJSON;
+        fbxToJSON << _rootNode;
+        std::string urlStd = url.toString().toStdString();
+        std::cout << "[FBXSerializer] fbx dump url: " << urlStd << std::endl;
+        QFileInfo modelFile(url.toString());
+        std::string modelFileDir = modelFile.dir().path().toStdString();
+        std::cout << "[FBXSerializer] modelFile.dir(): " << modelFileDir << std::endl;
+        std::string modelFileDirAbsolute = modelFile.absoluteDir().path().toStdString();
+        std::cout << "[FBXSerializer] modelFile.absoluteDir(): " << modelFileDirAbsolute << std::endl;
+        QFile modelFileLocal(url.toLocalFile());
+        std::string modelFileLocalAbsolute = modelFile.absoluteDir().path().toStdString();
+        std::cout << "[FBXSerializer] modelFileLocal.absoluteDir(): " << modelFileLocalAbsolute << std::endl;
+        auto fileBegin = url.toString().toStdString().find("file:");
+        if (fileBegin == 0) {
+            QString urlSansFile = url.toString().mid(5);
+            QFileInfo modelFileOhGodWhyPleaseWhy(urlSansFile);
+            std::string qtPlease = modelFileOhGodWhyPleaseWhy.absoluteDir().path().toStdString();
+            std::cout << "[FBXSerializer] Qt PLEASE " << qtPlease << std::endl;
+        }
+        std::string modelFileDirAbsolutePath = modelFile.dir().absolutePath().toStdString();
+        std::cout << "[FBXSerializer] modelFile.dir().absolutePath(): " << modelFileDirAbsolutePath << std::endl; // Anomaly?
+        QString outFilename(modelFile.dir().absolutePath() + "/" + modelFile.completeBaseName() + "_FBX.json");
+        std::string outFilenameStd = outFilename.toStdString();
+        std::cout << "[FBXSerializer] fbx dump outFilename: " << outFilenameStd << std::endl;
+        QFile jsonFile(outFilename);
+        if (jsonFile.open(QIODevice::WriteOnly)) {
+            jsonFile.write(fbxToJSON.str().c_str(), fbxToJSON.str().length());
+            jsonFile.close();
+        }
+    }
+#endif // HIFI_DUMP_FBX
 
     // FBXSerializer's mapping parameter supports the bool "deduplicateIndices," which is passed into FBXSerializer::extractMesh as "deduplicate"
 
