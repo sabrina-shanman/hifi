@@ -25,7 +25,7 @@
 //#define DEBUG_FBXSERIALIZER
 
 // TOOL: Uncomment the following line to dump a readable version of the FBX nodes next to the location of read FBX files (Note: Only works with local FBX files)
-#define HIFI_DUMP_FBX
+//#define HIFI_DUMP_FBX
 
 #ifdef HIFI_DUMP_FBX
 #include <QFile>
