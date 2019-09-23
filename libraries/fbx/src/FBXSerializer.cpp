@@ -155,6 +155,20 @@ public:
     bool isLimbNode;  // is this FBXModel transform is a "LimbNode" i.e. a joint
 };
 
+QString getGeometryID(const QMultiMap<QString, QString>& _connectionParentMap,
+        QMap<QString, ExtractedMesh>& meshes, QString nodeID, const QString& url) {
+    if (meshes.contains(nodeID)) {
+        // It's a mesh as well as a model
+        return nodeID;
+    }
+    // Assume the direct parent is the mesh, but check just to be safe.
+    QString parentID = _connectionParentMap.value(nodeID);
+    if (meshes.contains(parentID)) {
+        return parentID;
+    }
+    return QString();
+}
+
 glm::mat4 getGlobalTransform(const QMultiMap<QString, QString>& _connectionParentMap,
         const QHash<QString, FBXModel>& fbxModels, QString nodeID, bool mixamoHack, const QString& url) {
     glm::mat4 globalTransform;
