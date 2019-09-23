@@ -1429,13 +1429,20 @@ HFMModel* FBXSerializer::extractHFMModel(const hifi::VariantHash& mapping, const
     // see if any materials have texture children
     bool materialsHaveTextures = checkMaterialsHaveTextures(_hfmMaterials, _textureFilenames, _connectionChildMap);
 
-    for (QMap<QString, ExtractedMesh>::iterator it = meshes.begin(); it != meshes.end(); it++) {
-        ExtractedMesh& extracted = it.value();
+    for (QHash<QString, FBXModel>::iterator it = fbxModels.begin(); it != fbxModels.end(); it++) {
+        FBXModel& fbxModel = it.value();
+        QString modelID = it.key();
+
+        QString meshID = getGeometryID(_connectionParentMap, meshes, modelID, url);
+        if (meshID.isNull()) {
+            // No geometry associated with this model
+            continue;
+        }
+        ExtractedMesh& extracted = meshes[meshID];
 
         extracted.mesh.meshExtents.reset();
 
         // accumulate local transforms
-        QString modelID = fbxModels.contains(it.key()) ? it.key() : _connectionParentMap.value(it.key());
         glm::mat4 modelTransform = getGlobalTransform(_connectionParentMap, fbxModels, modelID, hfmModel.applicationName == "mixamo.com", url);
 
         // compute the mesh extents from the transformed vertices
@@ -1488,7 +1495,7 @@ HFMModel* FBXSerializer::extractHFMModel(const hifi::VariantHash& mapping, const
 
         // find the clusters with which the mesh is associated
         QVector<QString> clusterIDs;
-        foreach (const QString& childID, _connectionChildMap.values(it.key())) {
+        foreach (const QString& childID, _connectionChildMap.values(meshID)) {
             foreach (const QString& clusterID, _connectionChildMap.values(childID)) {
                 if (!clusters.contains(clusterID)) {
                     continue;
@@ -1565,7 +1572,7 @@ HFMModel* FBXSerializer::extractHFMModel(const hifi::VariantHash& mapping, const
                     int oldIndex = cluster.indices.at(j);
                     float weight = cluster.weights.at(j);
                     for (QMultiHash<int, int>::const_iterator it = extracted.newIndices.constFind(oldIndex);
-                            it != extracted.newIndices.end() && it.key() == oldIndex; it++) {
+                            it != extracted.newIndices.end() && meshID == oldIndex; it++) {
                         int newIndex = it.value();
 
                         // remember vertices with at least 1/4 weight
@@ -1650,7 +1657,7 @@ HFMModel* FBXSerializer::extractHFMModel(const hifi::VariantHash& mapping, const
 
         hfmModel.meshes.append(extracted.mesh);
         int meshIndex = hfmModel.meshes.size() - 1;
-        meshIDsToMeshIndices.insert(it.key(), meshIndex);
+        meshIDsToMeshIndices.insert(meshID, meshIndex);
     }
 
     // attempt to map any meshes to a named model
