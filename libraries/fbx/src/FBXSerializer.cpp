@@ -1687,27 +1687,20 @@ HFMModel::Pointer FBXSerializer::read(const hifi::ByteArray& data, const hifi::V
     {
         FBXToJSON fbxToJSON;
         fbxToJSON << _rootNode;
-        std::string urlStd = url.toString().toStdString();
-        std::cout << "[FBXSerializer] fbx dump url: " << urlStd << std::endl;
-        QFileInfo modelFile(url.toString());
-        std::string modelFileDir = modelFile.dir().path().toStdString();
-        std::cout << "[FBXSerializer] modelFile.dir(): " << modelFileDir << std::endl;
-        std::string modelFileDirAbsolute = modelFile.absoluteDir().path().toStdString();
-        std::cout << "[FBXSerializer] modelFile.absoluteDir(): " << modelFileDirAbsolute << std::endl;
-        QFile modelFileLocal(url.toLocalFile());
-        std::string modelFileLocalAbsolute = modelFile.absoluteDir().path().toStdString();
-        std::cout << "[FBXSerializer] modelFileLocal.absoluteDir(): " << modelFileLocalAbsolute << std::endl;
-        auto fileBegin = url.toString().toStdString().find("file:");
+        QString urlString = url.toString();
+        std::string urlStd = urlString.toStdString();
+        std::cout << "[FBXSerializer] urlString: " << urlStd << std::endl;
+        const std::string fileSuffix { "file:///" };
+        auto fileBegin = urlStd.find(fileSuffix);
         if (fileBegin == 0) {
-            QString urlSansFile = url.toString().mid(5);
-            QFileInfo modelFileOhGodWhyPleaseWhy(urlSansFile);
-            std::string qtPlease = modelFileOhGodWhyPleaseWhy.absoluteDir().path().toStdString();
-            std::cout << "[FBXSerializer] Qt PLEASE " << qtPlease << std::endl;
+            urlStd = urlStd.substr(fileSuffix.size());
+            std::cout << "[FBXSerializer] trimmed urlString: " << urlStd << std::endl;
         }
+
+        QFileInfo modelFile(urlStd.c_str());
         std::string modelFileDirAbsolutePath = modelFile.dir().absolutePath().toStdString();
-        std::cout << "[FBXSerializer] modelFile.dir().absolutePath(): " << modelFileDirAbsolutePath << std::endl; // Anomaly?
         QString outFilename(modelFile.dir().absolutePath() + "/" + modelFile.completeBaseName() + "_FBX.json");
-        std::string outFilenameStd = outFilename.toStdString();
+        std::string outFilenameStd { outFilename.toStdString() };
         std::cout << "[FBXSerializer] fbx dump outFilename: " << outFilenameStd << std::endl;
         QFile jsonFile(outFilename);
         if (jsonFile.open(QIODevice::WriteOnly)) {
