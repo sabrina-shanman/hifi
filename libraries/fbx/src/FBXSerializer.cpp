@@ -430,7 +430,7 @@ HFMModel* FBXSerializer::extractHFMModel(const hifi::VariantHash& mapping, const
 
     QMap<QString, ExtractedMesh> meshes;
     QHash<QString, QString> modelIDsToNames;
-    QHash<QString, int> meshIDsToMeshIndices;
+    QMultiHash<QString, int> meshIDsToMeshIndices;
     QHash<QString, QString> ooChildToParent;
 
     QVector<ExtractedBlendshape> blendshapes;
@@ -1441,20 +1441,33 @@ HFMModel* FBXSerializer::extractHFMModel(const hifi::VariantHash& mapping, const
         FBXModel& fbxModel = it.value();
         QString modelID = it.key();
         std::string modelIDStd = modelID.toStdString(); // TODO: Remove after testing
+        qCDebug(modelformat) << "Checking modelID: " << modelID; // TODO: Remove after testing
 
         QString meshID = getGeometryID(_connectionChildMap, meshes, modelID, url);
         std::string meshIDStd = meshID.toStdString(); // TODO: Remove after testing
         if (meshID.isNull()) {
             // No geometry associated with this model
+            qCDebug(modelformat) << "model does not have a meshID; skipping"; // TODO: Remove after testing
             continue;
         }
+        qCDebug(modelformat) << "Checking meshID: " << meshID; // TODO: Remove after testing
         ExtractedMesh& extracted = meshes[meshID];
 
         extracted.mesh.meshExtents.reset();
 
         // accumulate local transforms
         glm::mat4 modelTransform = getGlobalTransform(_connectionParentMap, fbxModels, modelID, hfmModel.applicationName == "mixamo.com", url);
-
+        // TODO: Remove after testing
+        {
+            Transform transform(modelTransform);
+            glm::vec3 scale = transform.getScale();
+            qCDebug(modelformat) << "Scale: " << scale.x << scale.y << scale.z;
+            glm::vec3 translation = transform.getTranslation();
+            qCDebug(modelformat) << "Translation: " << translation.x << translation.y << translation.z;
+            glm::quat rotation = transform.getRotation();
+            qCDebug(modelformat) << "Rotation: " << rotation.x << rotation.y << rotation.z << rotation.w;
+        }
+        
         // compute the mesh extents from the transformed vertices
         foreach (const glm::vec3& vertex, extracted.mesh.vertices) {
             glm::vec3 transformedVertex = glm::vec3(modelTransform * glm::vec4(vertex, 1.0f));
@@ -1464,6 +1477,11 @@ HFMModel* FBXSerializer::extractHFMModel(const hifi::VariantHash& mapping, const
             extracted.mesh.meshExtents.minimum = glm::min(extracted.mesh.meshExtents.minimum, transformedVertex);
             extracted.mesh.meshExtents.maximum = glm::max(extracted.mesh.meshExtents.maximum, transformedVertex);
             extracted.mesh.modelTransform = modelTransform;
+        }
+        // TODO: Remove after testing
+        {
+            glm::vec3 extentsSize = hfmModel.meshExtents.size();
+            qCDebug(modelformat) << "extents are now" << extentsSize.x << extentsSize.y << extentsSize.z;
         }
 
         // look for textures, material properties
@@ -1483,6 +1501,7 @@ HFMModel* FBXSerializer::extractHFMModel(const hifi::VariantHash& mapping, const
                     if (extracted.partMaterialTextures.at(j).first == materialIndex) {
                         HFMMeshPart& part = extracted.mesh.parts[j];
                         part.materialID = material.materialID;
+                        qCDebug(modelformat) << "assigning materialID" << part.materialID << "to part ID" << j; // TODO: Remove after testing
                     }
                 }
 
@@ -1545,6 +1564,7 @@ HFMModel* FBXSerializer::extractHFMModel(const hifi::VariantHash& mapping, const
                 // update the bind pose extents
                 glm::vec3 bindTranslation = extractTranslation(hfmModel.offset * joint.bindTransform);
                 hfmModel.bindExtents.addPoint(bindTranslation);
+                qCDebug(modelformat) << "found cluster" << clusterID; // TODO: Remove after testing
             }
         }
 
@@ -1578,6 +1598,7 @@ HFMModel* FBXSerializer::extractHFMModel(const hifi::VariantHash& mapping, const
                 glm::mat4 meshToJoint = glm::inverse(joint.bindTransform) * modelTransform;
                 ShapeVertices& points = hfmModel.shapeVertices.at(jointIndex);
 
+                qCDebug(modelformat) << "processing cluster" << clusterID << "with indices count" << cluster.indices.size(); // TODO: Remove after testing
                 for (int j = 0; j < cluster.indices.size(); j++) {
                     int oldIndex = cluster.indices.at(j);
                     float weight = cluster.weights.at(j);
@@ -1665,26 +1686,29 @@ HFMModel* FBXSerializer::extractHFMModel(const hifi::VariantHash& mapping, const
             }
         }
 
+        qCDebug(modelformat) << "Inserting mesh with ID" << meshID << "and meshIndex" << meshIndex; // TODO: Remove after testing
         hfmModel.meshes.append(extracted.mesh);
         int meshIndex = hfmModel.meshes.size() - 1;
         meshIDsToMeshIndices.insert(meshID, meshIndex);
     }
 
+    auto meshIndicesLeft = meshIDsToMeshIndices.size(); // TODO: Remove after testing
     // attempt to map any meshes to a named model
-    for (QHash<QString, int>::const_iterator m = meshIDsToMeshIndices.constBegin();
-            m != meshIDsToMeshIndices.constEnd(); m++) {
-
-        const QString& meshID = m.key();
-        int meshIndex = m.value();
-
+    for (auto m = meshIDsToMeshIndices.constKeyValueBegin();
+            m != meshIDsToMeshIndices.constKeyValueEnd(); ++m) {
+        const QString& meshID = m.base().key();
+        const int meshIndex = m.base().value();
         if (ooChildToParent.contains(meshID)) {
             const QString& modelID = ooChildToParent.value(meshID);
             if (modelIDsToNames.contains(modelID)) {
                 const QString& modelName = modelIDsToNames.value(modelID);
                 hfmModel.meshIndicesToModelNames.insert(meshIndex, modelName);
+                qCDebug(modelformat) << "Mapping hfmModel.meshIndicesToModelNames with index " << meshIndex << "and name" << modelName; // TODO: Remove after testing
             }
         }
+        --meshIndicesLeft;
     }
+    assert(meshIndicesLeft == 0);
 
     if (applyUpAxisZRotation) {
         hfmModelPtr->meshExtents.transform(glm::mat4_cast(upAxisZRotation));

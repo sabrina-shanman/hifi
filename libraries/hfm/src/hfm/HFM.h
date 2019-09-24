@@ -293,6 +293,8 @@ public:
     using Pointer = std::shared_ptr<Model>;
     using ConstPointer = std::shared_ptr<const Model>;
 
+    void debugDump() const;
+
     QString originalURL;
     QString author;
     QString applicationName; ///< the name of the application that generated the model
