@@ -155,16 +155,24 @@ public:
     bool isLimbNode;  // is this FBXModel transform is a "LimbNode" i.e. a joint
 };
 
-QString getGeometryID(const QMultiMap<QString, QString>& _connectionParentMap,
-        QMap<QString, ExtractedMesh>& meshes, QString nodeID, const QString& url) {
-    if (meshes.contains(nodeID)) {
+QString getGeometryID(const QMultiMap<QString, QString>& _connectionChildMap,
+        QMap<QString, ExtractedMesh>& meshes, QString modelID, const QString& url) {
+    if (meshes.contains(modelID)) {
         // It's a mesh as well as a model
-        return nodeID;
+        return modelID;
     }
-    // Assume the direct parent is the mesh, but check just to be safe.
-    QString parentID = _connectionParentMap.value(nodeID);
-    if (meshes.contains(parentID)) {
-        return parentID;
+    // Assume a direct child is the mesh
+    QList<QString> childIDs = _connectionChildMap.values(modelID);
+    for (const QString& childID : childIDs) {
+        std::string childIDStd = childID.toStdString(); // TODO: Remove after testing
+        if (childID == modelID) {
+            qCWarning(modelformat) << "Ignoring loop detected in FBX connection map for" << url;
+            continue;
+        }
+
+        if (meshes.contains(childID)) {
+            return childID;
+        }
     }
     return QString();
 }
@@ -1432,8 +1440,10 @@ HFMModel* FBXSerializer::extractHFMModel(const hifi::VariantHash& mapping, const
     for (QHash<QString, FBXModel>::iterator it = fbxModels.begin(); it != fbxModels.end(); it++) {
         FBXModel& fbxModel = it.value();
         QString modelID = it.key();
+        std::string modelIDStd = modelID.toStdString(); // TODO: Remove after testing
 
-        QString meshID = getGeometryID(_connectionParentMap, meshes, modelID, url);
+        QString meshID = getGeometryID(_connectionChildMap, meshes, modelID, url);
+        std::string meshIDStd = meshID.toStdString(); // TODO: Remove after testing
         if (meshID.isNull()) {
             // No geometry associated with this model
             continue;
