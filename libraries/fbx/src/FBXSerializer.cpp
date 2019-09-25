@@ -145,6 +145,22 @@ public:
     bool isLimbNode;  // is this FBXModel transform is a "LimbNode" i.e. a joint
 };
 
+std::vector<QString> getParentIDsForMeshID(const QString& meshID, const QHash<QString, FBXModel>& fbxModels, const QMultiMap<QString, QString>& _connectionParentMap) {
+    std::vector<QString> parentsForMesh;
+    if (fbxModels.contains(meshID)) {
+        parentsForMesh.push_back(meshID);
+    } else {
+        // This mesh may have more than one parent model, with different material and transform, representing a different instance of the mesh
+        for (const auto& parentID : _connectionParentMap.values(meshID)) {
+            //if (fbxModels.contains(parentID)) {
+            if (true) { // TODO: Revert to above after testing
+                parentsForMesh.push_back(parentID);
+            }
+        }
+    }
+    return parentsForMesh;
+}
+
 glm::mat4 getGlobalTransform(const QMultiMap<QString, QString>& _connectionParentMap,
         const QHash<QString, FBXModel>& fbxModels, QString nodeID, bool mixamoHack, const QString& url) {
     glm::mat4 globalTransform;
@@ -1406,227 +1422,232 @@ HFMModel* FBXSerializer::extractHFMModel(const hifi::VariantHash& mapping, const
     bool materialsHaveTextures = checkMaterialsHaveTextures(_hfmMaterials, _textureFilenames, _connectionChildMap);
 
     for (QMap<QString, ExtractedMesh>::iterator it = meshes.begin(); it != meshes.end(); it++) {
-        ExtractedMesh& extracted = it.value();
+        const QString& meshID = it.key();
+        const ExtractedMesh& extracted = it.value();
+        const auto& partMaterialTextures = extracted.partMaterialTextures;
+        const auto& newIndices = extracted.newIndices;
 
-        extracted.mesh.meshExtents.reset();
+        std::vector<QString> parentModelIDs = getParentIDsForMeshID(meshID, fbxModels, _connectionParentMap);
+        for (const QString& modelID : parentModelIDs) {
+            hfm::Mesh mesh = extracted.mesh;
+            // accumulate local transforms
+            glm::mat4 modelTransform = getGlobalTransform(_connectionParentMap, fbxModels, modelID, hfmModel.applicationName == "mixamo.com", url);
 
-        // accumulate local transforms
-        QString modelID = fbxModels.contains(it.key()) ? it.key() : _connectionParentMap.value(it.key());
-        glm::mat4 modelTransform = getGlobalTransform(_connectionParentMap, fbxModels, modelID, hfmModel.applicationName == "mixamo.com", url);
+            mesh.meshExtents.reset();
+            // compute the mesh extents from the transformed vertices
+            for (const glm::vec3& vertex : mesh.vertices) {
+                glm::vec3 transformedVertex = glm::vec3(modelTransform * glm::vec4(vertex, 1.0f));
+                hfmModel.meshExtents.minimum = glm::min(hfmModel.meshExtents.minimum, transformedVertex);
+                hfmModel.meshExtents.maximum = glm::max(hfmModel.meshExtents.maximum, transformedVertex);
 
-        // compute the mesh extents from the transformed vertices
-        foreach (const glm::vec3& vertex, extracted.mesh.vertices) {
-            glm::vec3 transformedVertex = glm::vec3(modelTransform * glm::vec4(vertex, 1.0f));
-            hfmModel.meshExtents.minimum = glm::min(hfmModel.meshExtents.minimum, transformedVertex);
-            hfmModel.meshExtents.maximum = glm::max(hfmModel.meshExtents.maximum, transformedVertex);
+                mesh.meshExtents.minimum = glm::min(mesh.meshExtents.minimum, transformedVertex);
+                mesh.meshExtents.maximum = glm::max(mesh.meshExtents.maximum, transformedVertex);
+                mesh.modelTransform = modelTransform;
+            }
 
-            extracted.mesh.meshExtents.minimum = glm::min(extracted.mesh.meshExtents.minimum, transformedVertex);
-            extracted.mesh.meshExtents.maximum = glm::max(extracted.mesh.meshExtents.maximum, transformedVertex);
-            extracted.mesh.modelTransform = modelTransform;
-        }
+            // look for textures, material properties
+            // allocate the Part material library
+            // NOTE: extracted.partMaterialTextures is empty for FBX_DRACO_MESH_VERSION >= 2. In that case, the mesh part's materialID string is already defined.
+            int materialIndex = 0;
+            int textureIndex = 0;
+            QList<QString> children = _connectionChildMap.values(modelID);
+            for (int i = children.size() - 1; i >= 0; i--) {
 
-        // look for textures, material properties
-        // allocate the Part material library
-        // NOTE: extracted.partMaterialTextures is empty for FBX_DRACO_MESH_VERSION >= 2. In that case, the mesh part's materialID string is already defined.
-        int materialIndex = 0;
-        int textureIndex = 0;
-        QList<QString> children = _connectionChildMap.values(modelID);
-        for (int i = children.size() - 1; i >= 0; i--) {
+                const QString& childID = children.at(i);
+                if (_hfmMaterials.contains(childID)) {
+                    // the pure material associated with this part
+                    HFMMaterial material = _hfmMaterials.value(childID);
 
-            const QString& childID = children.at(i);
-            if (_hfmMaterials.contains(childID)) {
-                // the pure material associated with this part
-                HFMMaterial material = _hfmMaterials.value(childID);
+                    for (int j = 0; j < partMaterialTextures.size(); j++) {
+                        if (partMaterialTextures.at(j).first == materialIndex) {
+                            HFMMeshPart& part = mesh.parts[j];
+                            part.materialID = material.materialID;
+                        }
+                    }
 
-                for (int j = 0; j < extracted.partMaterialTextures.size(); j++) {
-                    if (extracted.partMaterialTextures.at(j).first == materialIndex) {
-                        HFMMeshPart& part = extracted.mesh.parts[j];
-                        part.materialID = material.materialID;
+                    materialIndex++;
+                } else if (_textureFilenames.contains(childID)) {
+                    // NOTE (Sabrina 2019/01/11): getTextures now takes in the materialID as a second parameter, because FBX material nodes can sometimes have uv transform information (ex: "Maya|uv_scale")
+                    // I'm leaving the second parameter blank right now as this code may never be used.
+                    HFMTexture texture = getTexture(childID, "");
+                    for (int j = 0; j < partMaterialTextures.size(); j++) {
+                        int partTexture = partMaterialTextures.at(j).second;
+                        if (partTexture == textureIndex && !(partTexture == 0 && materialsHaveTextures)) {
+                            // TODO: DO something here that replaces this legacy code
+                            // Maybe create a material just for this part with the correct textures?
+                            // extracted.mesh.parts[j].diffuseTexture = texture;
+                        }
+                    }
+                    textureIndex++;
+                }
+            }
+
+            // find the clusters with which the mesh is associated
+            QVector<QString> clusterIDs;
+            for (const QString& childID : _connectionChildMap.values(meshID)) {
+                for (const QString& clusterID : _connectionChildMap.values(childID)) {
+                    if (!clusters.contains(clusterID)) {
+                        continue;
+                    }
+                    HFMCluster hfmCluster;
+                    const Cluster& cluster = clusters[clusterID];
+                    clusterIDs.append(clusterID);
+
+                    // see http://stackoverflow.com/questions/13566608/loading-skinning-information-from-fbx for a discussion
+                    // of skinning information in FBX
+                    QString jointID = _connectionChildMap.value(clusterID);
+                    hfmCluster.jointIndex = modelIDs.indexOf(jointID);
+                    if (hfmCluster.jointIndex == -1) {
+                        qCDebug(modelformat) << "Joint not in model list: " << jointID;
+                        hfmCluster.jointIndex = 0;
+                    }
+
+                    hfmCluster.inverseBindMatrix = glm::inverse(cluster.transformLink) * modelTransform;
+
+                    // slam bottom row to (0, 0, 0, 1), we KNOW this is not a perspective matrix and
+                    // sometimes floating point fuzz can be introduced after the inverse.
+                    hfmCluster.inverseBindMatrix[0][3] = 0.0f;
+                    hfmCluster.inverseBindMatrix[1][3] = 0.0f;
+                    hfmCluster.inverseBindMatrix[2][3] = 0.0f;
+                    hfmCluster.inverseBindMatrix[3][3] = 1.0f;
+
+                    hfmCluster.inverseBindTransform = Transform(hfmCluster.inverseBindMatrix);
+
+                    mesh.clusters.append(hfmCluster);
+
+                    // override the bind rotation with the transform link
+                    HFMJoint& joint = hfmModel.joints[hfmCluster.jointIndex];
+                    joint.inverseBindRotation = glm::inverse(extractRotation(cluster.transformLink));
+                    joint.bindTransform = cluster.transformLink;
+                    joint.bindTransformFoundInCluster = true;
+
+                    // update the bind pose extents
+                    glm::vec3 bindTranslation = extractTranslation(hfmModel.offset * joint.bindTransform);
+                    hfmModel.bindExtents.addPoint(bindTranslation);
+                }
+            }
+
+            // the last cluster is the root cluster
+            {
+                HFMCluster cluster;
+                cluster.jointIndex = modelIDs.indexOf(modelID);
+                if (cluster.jointIndex == -1) {
+                    qCDebug(modelformat) << "Model not in model list: " << modelID;
+                    cluster.jointIndex = 0;
+                }
+                mesh.clusters.append(cluster);
+            }
+
+            // whether we're skinned depends on how many clusters are attached
+            if (clusterIDs.size() > 1) {
+                // this is a multi-mesh joint
+                const int WEIGHTS_PER_VERTEX = 4;
+                int numClusterIndices = mesh.vertices.size() * WEIGHTS_PER_VERTEX;
+                mesh.clusterIndices.fill(mesh.clusters.size() - 1, numClusterIndices);
+                QVector<float> weightAccumulators;
+                weightAccumulators.fill(0.0f, numClusterIndices);
+
+                for (int i = 0; i < clusterIDs.size(); i++) {
+                    QString clusterID = clusterIDs.at(i);
+                    const Cluster& cluster = clusters[clusterID];
+                    const HFMCluster& hfmCluster = mesh.clusters.at(i);
+                    int jointIndex = hfmCluster.jointIndex;
+                    HFMJoint& joint = hfmModel.joints[jointIndex];
+
+                    glm::mat4 meshToJoint = glm::inverse(joint.bindTransform) * modelTransform;
+                    ShapeVertices& points = hfmModel.shapeVertices.at(jointIndex);
+
+                    for (int j = 0; j < cluster.indices.size(); j++) {
+                        int oldIndex = cluster.indices.at(j);
+                        float weight = cluster.weights.at(j);
+                        for (QMultiHash<int, int>::const_iterator it = newIndices.constFind(oldIndex);
+                                it != newIndices.end() && it.key() == oldIndex; it++) {
+                            int newIndex = it.value();
+
+                            // remember vertices with at least 1/4 weight
+                            // FIXME: vertices with no weightpainting won't get recorded here
+                            const float EXPANSION_WEIGHT_THRESHOLD = 0.25f;
+                            if (weight >= EXPANSION_WEIGHT_THRESHOLD) {
+                                // transform to joint-frame and save for later
+                                const glm::mat4 vertexTransform = meshToJoint * glm::translate(mesh.vertices.at(newIndex));
+                                points.push_back(extractTranslation(vertexTransform));
+                            }
+
+                            // look for an unused slot in the weights vector
+                            int weightIndex = newIndex * WEIGHTS_PER_VERTEX;
+                            int lowestIndex = -1;
+                            float lowestWeight = FLT_MAX;
+                            int k = 0;
+                            for (; k < WEIGHTS_PER_VERTEX; k++) {
+                                if (weightAccumulators[weightIndex + k] == 0.0f) {
+                                    mesh.clusterIndices[weightIndex + k] = i;
+                                    weightAccumulators[weightIndex + k] = weight;
+                                    break;
+                                }
+                                if (weightAccumulators[weightIndex + k] < lowestWeight) {
+                                    lowestIndex = k;
+                                    lowestWeight = weightAccumulators[weightIndex + k];
+                                }
+                            }
+                            if (k == WEIGHTS_PER_VERTEX && weight > lowestWeight) {
+                                // no space for an additional weight; we must replace the lowest
+                                weightAccumulators[weightIndex + lowestIndex] = weight;
+                                mesh.clusterIndices[weightIndex + lowestIndex] = i;
+                            }
+                        }
                     }
                 }
 
-                materialIndex++;
-            } else if (_textureFilenames.contains(childID)) {
-                // NOTE (Sabrina 2019/01/11): getTextures now takes in the materialID as a second parameter, because FBX material nodes can sometimes have uv transform information (ex: "Maya|uv_scale")
-                // I'm leaving the second parameter blank right now as this code may never be used.
-                HFMTexture texture = getTexture(childID, "");
-                for (int j = 0; j < extracted.partMaterialTextures.size(); j++) {
-                    int partTexture = extracted.partMaterialTextures.at(j).second;
-                    if (partTexture == textureIndex && !(partTexture == 0 && materialsHaveTextures)) {
-                        // TODO: DO something here that replaces this legacy code
-                        // Maybe create a material just for this part with the correct textures?
-                        // extracted.mesh.parts[j].diffuseTexture = texture;
+                // now that we've accumulated the most relevant weights for each vertex
+                // normalize and compress to 16-bits
+                mesh.clusterWeights.fill(0, numClusterIndices);
+                int numVertices = mesh.vertices.size();
+                for (int i = 0; i < numVertices; ++i) {
+                    int j = i * WEIGHTS_PER_VERTEX;
+
+                    // normalize weights into uint16_t
+                    float totalWeight = 0.0f;
+                    for (int k = j; k < j + WEIGHTS_PER_VERTEX; ++k) {
+                        totalWeight += weightAccumulators[k];
+                    }
+
+                    const float ALMOST_HALF = 0.499f;
+                    if (totalWeight > 0.0f) {
+                        float weightScalingFactor = (float)(UINT16_MAX) / totalWeight;
+                        for (int k = j; k < j + WEIGHTS_PER_VERTEX; ++k) {
+                            mesh.clusterWeights[k] = (uint16_t)(weightScalingFactor * weightAccumulators[k] + ALMOST_HALF);
+                        }
+                    } else {
+                        mesh.clusterWeights[j] = (uint16_t)((float)(UINT16_MAX) + ALMOST_HALF);
                     }
                 }
-                textureIndex++;
-            }
-        }
-
-        // find the clusters with which the mesh is associated
-        QVector<QString> clusterIDs;
-        foreach (const QString& childID, _connectionChildMap.values(it.key())) {
-            foreach (const QString& clusterID, _connectionChildMap.values(childID)) {
-                if (!clusters.contains(clusterID)) {
-                    continue;
-                }
-                HFMCluster hfmCluster;
-                const Cluster& cluster = clusters[clusterID];
-                clusterIDs.append(clusterID);
-
-                // see http://stackoverflow.com/questions/13566608/loading-skinning-information-from-fbx for a discussion
-                // of skinning information in FBX
-                QString jointID = _connectionChildMap.value(clusterID);
-                hfmCluster.jointIndex = modelIDs.indexOf(jointID);
-                if (hfmCluster.jointIndex == -1) {
-                    qCDebug(modelformat) << "Joint not in model list: " << jointID;
-                    hfmCluster.jointIndex = 0;
-                }
-
-                hfmCluster.inverseBindMatrix = glm::inverse(cluster.transformLink) * modelTransform;
-
-                // slam bottom row to (0, 0, 0, 1), we KNOW this is not a perspective matrix and
-                // sometimes floating point fuzz can be introduced after the inverse.
-                hfmCluster.inverseBindMatrix[0][3] = 0.0f;
-                hfmCluster.inverseBindMatrix[1][3] = 0.0f;
-                hfmCluster.inverseBindMatrix[2][3] = 0.0f;
-                hfmCluster.inverseBindMatrix[3][3] = 1.0f;
-
-                hfmCluster.inverseBindTransform = Transform(hfmCluster.inverseBindMatrix);
-
-                extracted.mesh.clusters.append(hfmCluster);
-
-                // override the bind rotation with the transform link
-                HFMJoint& joint = hfmModel.joints[hfmCluster.jointIndex];
-                joint.inverseBindRotation = glm::inverse(extractRotation(cluster.transformLink));
-                joint.bindTransform = cluster.transformLink;
-                joint.bindTransformFoundInCluster = true;
-
-                // update the bind pose extents
-                glm::vec3 bindTranslation = extractTranslation(hfmModel.offset * joint.bindTransform);
-                hfmModel.bindExtents.addPoint(bindTranslation);
-            }
-        }
-
-        // the last cluster is the root cluster
-        {
-            HFMCluster cluster;
-            cluster.jointIndex = modelIDs.indexOf(modelID);
-            if (cluster.jointIndex == -1) {
-                qCDebug(modelformat) << "Model not in model list: " << modelID;
-                cluster.jointIndex = 0;
-            }
-            extracted.mesh.clusters.append(cluster);
-        }
-
-        // whether we're skinned depends on how many clusters are attached
-        if (clusterIDs.size() > 1) {
-            // this is a multi-mesh joint
-            const int WEIGHTS_PER_VERTEX = 4;
-            int numClusterIndices = extracted.mesh.vertices.size() * WEIGHTS_PER_VERTEX;
-            extracted.mesh.clusterIndices.fill(extracted.mesh.clusters.size() - 1, numClusterIndices);
-            QVector<float> weightAccumulators;
-            weightAccumulators.fill(0.0f, numClusterIndices);
-
-            for (int i = 0; i < clusterIDs.size(); i++) {
-                QString clusterID = clusterIDs.at(i);
-                const Cluster& cluster = clusters[clusterID];
-                const HFMCluster& hfmCluster = extracted.mesh.clusters.at(i);
-                int jointIndex = hfmCluster.jointIndex;
+            } else {
+                // this is a single-joint mesh
+                const HFMCluster& firstHFMCluster = mesh.clusters.at(0);
+                int jointIndex = firstHFMCluster.jointIndex;
                 HFMJoint& joint = hfmModel.joints[jointIndex];
 
+                // transform cluster vertices to joint-frame and save for later
                 glm::mat4 meshToJoint = glm::inverse(joint.bindTransform) * modelTransform;
                 ShapeVertices& points = hfmModel.shapeVertices.at(jointIndex);
+                for (const glm::vec3& vertex : mesh.vertices) {
+                    const glm::mat4 vertexTransform = meshToJoint * glm::translate(vertex);
+                    points.push_back(extractTranslation(vertexTransform));
+                }
 
-                for (int j = 0; j < cluster.indices.size(); j++) {
-                    int oldIndex = cluster.indices.at(j);
-                    float weight = cluster.weights.at(j);
-                    for (QMultiHash<int, int>::const_iterator it = extracted.newIndices.constFind(oldIndex);
-                            it != extracted.newIndices.end() && it.key() == oldIndex; it++) {
-                        int newIndex = it.value();
-
-                        // remember vertices with at least 1/4 weight
-                        // FIXME: vertices with no weightpainting won't get recorded here
-                        const float EXPANSION_WEIGHT_THRESHOLD = 0.25f;
-                        if (weight >= EXPANSION_WEIGHT_THRESHOLD) {
-                            // transform to joint-frame and save for later
-                            const glm::mat4 vertexTransform = meshToJoint * glm::translate(extracted.mesh.vertices.at(newIndex));
-                            points.push_back(extractTranslation(vertexTransform));
-                        }
-
-                        // look for an unused slot in the weights vector
-                        int weightIndex = newIndex * WEIGHTS_PER_VERTEX;
-                        int lowestIndex = -1;
-                        float lowestWeight = FLT_MAX;
-                        int k = 0;
-                        for (; k < WEIGHTS_PER_VERTEX; k++) {
-                            if (weightAccumulators[weightIndex + k] == 0.0f) {
-                                extracted.mesh.clusterIndices[weightIndex + k] = i;
-                                weightAccumulators[weightIndex + k] = weight;
-                                break;
-                            }
-                            if (weightAccumulators[weightIndex + k] < lowestWeight) {
-                                lowestIndex = k;
-                                lowestWeight = weightAccumulators[weightIndex + k];
-                            }
-                        }
-                        if (k == WEIGHTS_PER_VERTEX && weight > lowestWeight) {
-                            // no space for an additional weight; we must replace the lowest
-                            weightAccumulators[weightIndex + lowestIndex] = weight;
-                            extracted.mesh.clusterIndices[weightIndex + lowestIndex] = i;
-                        }
+                // Apply geometric offset, if present, by transforming the vertices directly
+                if (joint.hasGeometricOffset) {
+                    glm::mat4 geometricOffset = createMatFromScaleQuatAndPos(joint.geometricScaling, joint.geometricRotation, joint.geometricTranslation);
+                    for (int i = 0; i < mesh.vertices.size(); i++) {
+                        mesh.vertices[i] = transformPoint(geometricOffset, mesh.vertices[i]);
                     }
                 }
             }
 
-            // now that we've accumulated the most relevant weights for each vertex
-            // normalize and compress to 16-bits
-            extracted.mesh.clusterWeights.fill(0, numClusterIndices);
-            int numVertices = extracted.mesh.vertices.size();
-            for (int i = 0; i < numVertices; ++i) {
-                int j = i * WEIGHTS_PER_VERTEX;
-
-                // normalize weights into uint16_t
-                float totalWeight = 0.0f;
-                for (int k = j; k < j + WEIGHTS_PER_VERTEX; ++k) {
-                    totalWeight += weightAccumulators[k];
-                }
-
-                const float ALMOST_HALF = 0.499f;
-                if (totalWeight > 0.0f) {
-                    float weightScalingFactor = (float)(UINT16_MAX) / totalWeight;
-                    for (int k = j; k < j + WEIGHTS_PER_VERTEX; ++k) {
-                        extracted.mesh.clusterWeights[k] = (uint16_t)(weightScalingFactor * weightAccumulators[k] + ALMOST_HALF);
-                    }
-                } else {
-                    extracted.mesh.clusterWeights[j] = (uint16_t)((float)(UINT16_MAX) + ALMOST_HALF);
-                }
-            }
-        } else {
-            // this is a single-joint mesh
-            const HFMCluster& firstHFMCluster = extracted.mesh.clusters.at(0);
-            int jointIndex = firstHFMCluster.jointIndex;
-            HFMJoint& joint = hfmModel.joints[jointIndex];
-
-            // transform cluster vertices to joint-frame and save for later
-            glm::mat4 meshToJoint = glm::inverse(joint.bindTransform) * modelTransform;
-            ShapeVertices& points = hfmModel.shapeVertices.at(jointIndex);
-            foreach (const glm::vec3& vertex, extracted.mesh.vertices) {
-                const glm::mat4 vertexTransform = meshToJoint * glm::translate(vertex);
-                points.push_back(extractTranslation(vertexTransform));
-            }
-
-            // Apply geometric offset, if present, by transforming the vertices directly
-            if (joint.hasGeometricOffset) {
-                glm::mat4 geometricOffset = createMatFromScaleQuatAndPos(joint.geometricScaling, joint.geometricRotation, joint.geometricTranslation);
-                for (int i = 0; i < extracted.mesh.vertices.size(); i++) {
-                    extracted.mesh.vertices[i] = transformPoint(geometricOffset, extracted.mesh.vertices[i]);
-                }
-            }
+            hfmModel.meshes.append(mesh);
+            int meshIndex = hfmModel.meshes.size() - 1;
+            meshIDsToMeshIndices.insert(meshID, meshIndex);
         }
-
-        hfmModel.meshes.append(extracted.mesh);
-        int meshIndex = hfmModel.meshes.size() - 1;
-        meshIDsToMeshIndices.insert(it.key(), meshIndex);
     }
 
     // attempt to map any meshes to a named model
