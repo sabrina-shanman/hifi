@@ -106,6 +106,21 @@ namespace baker {
         }
     };
 
+    void reAddDeprecatedMeshExtents(hfm::Model& hfmModel) {
+        for (uint32_t meshIndex = 0; meshIndex < (uint32_t)hfmModel.meshes.size(); ++meshIndex) {
+            hfm::Mesh& mesh = hfmModel.meshes[meshIndex];
+            if (mesh.meshExtents.isValid()) {
+                continue;
+            }
+            for (const hfm::Shape& shape : hfmModel.shapes) {
+                if (shape.mesh != meshIndex) {
+                    continue;
+                }
+                mesh.meshExtents.addExtents(shape.transformedExtents);
+            }
+        }
+    }
+
     class BuildModelTask {
     public:
         using Input = VaryingSet9<hfm::Model::Pointer, std::vector<hfm::Mesh>, std::vector<hfm::Joint>, QMap<int, glm::quat>, QHash<QString, int>, FlowData, std::vector<ShapeVertices>, std::vector<hfm::Shape>, Extents>;
@@ -125,6 +140,8 @@ namespace baker {
             // These depend on the ShapeVertices
             // TODO: Create a task for this rather than calculating it here
             hfmModelOut->computeKdops();
+            // TODO: Use the new Extents in the hfm::Shape rather than in the hfm::Mesh, then remove this.
+            reAddDeprecatedMeshExtents(*hfmModelOut);
             output = hfmModelOut;
         }
     };
