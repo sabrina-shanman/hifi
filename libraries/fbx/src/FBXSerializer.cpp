@@ -1644,6 +1644,23 @@ HFMModel* FBXSerializer::extractHFMModel(const hifi::VariantHash& mapping, const
             joint.globalTransform = joint.globalTransform * glm::mat4_cast(upAxisZRotation);
         }
     }
+
+    // TODO: Remove after we use the new transform system
+    for (uint32_t meshIndex = 0; meshIndex < (uint32_t)hfmModel.meshes.size(); ++meshIndex) {
+        hfm::Mesh& mesh = hfmModel.meshes[meshIndex];
+        if (mesh.clusters.empty()) {
+            for (const hfm::Shape& shape : hfmModel.shapes) {
+                if (shape.mesh == meshIndex) {
+                    hfm::Cluster cluster;
+                    cluster.jointIndex = (int)shape.transform;
+                    mesh.clusters.reserve(1);
+                    mesh.clusters.push_back(cluster);
+                    break;
+                }
+            }
+        }
+    }
+
     return hfmModelPtr;
 }
 
