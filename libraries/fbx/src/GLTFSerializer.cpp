@@ -1513,6 +1513,20 @@ bool GLTFSerializer::buildGeometry(HFMModel& hfmModel, const hifi::VariantHash& 
         }
     }
 
+    // TODO: Remove after testing
+    for (uint32_t meshIndex = 0; meshIndex < (uint32_t)hfmModel.meshes.size(); ++meshIndex) {
+        hfm::Mesh& mesh = hfmModel.meshes[meshIndex];
+        for (uint32_t partIndex = 0; partIndex < (uint32_t)mesh.parts.size(); ++partIndex) {
+            hfm::MeshPart& part = mesh.parts[partIndex];
+            for (const hfm::Shape& shape : hfmModel.shapes) {
+                if (shape.mesh == meshIndex && shape.meshPart == partIndex) {
+                    part.materialID = hfmModel.materials[shape.material].materialID;
+                    break;
+                }
+            }
+        }
+    }
+
     return true;
 }
 
