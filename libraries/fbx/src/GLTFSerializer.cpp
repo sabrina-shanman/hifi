@@ -1491,6 +1491,12 @@ bool GLTFSerializer::buildGeometry(HFMModel& hfmModel, const hifi::VariantHash& 
         }
     }
 
+    // TODO: Remove after we support skinning again
+    for (uint32_t meshIndex = 0; meshIndex < (uint32_t)hfmModel.meshes.size(); ++meshIndex) {
+        hfm::Mesh& mesh = hfmModel.meshes[meshIndex];
+        mesh.clusters.clear();
+    }
+
     // TODO: Remove after we use the new transform system
     for (uint32_t meshIndex = 0; meshIndex < (uint32_t)hfmModel.meshes.size(); ++meshIndex) {
         hfm::Mesh& mesh = hfmModel.meshes[meshIndex];
