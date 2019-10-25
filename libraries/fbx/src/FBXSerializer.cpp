@@ -1323,10 +1323,10 @@ HFMModel* FBXSerializer::extractHFMModel(const hifi::VariantHash& mapping, const
         joint.geometricScaling = fbxModel.geometricScaling;
         joint.isSkeletonJoint = fbxModel.isLimbNode;
         hfmModel.hasSkeletonJoints = (hfmModel.hasSkeletonJoints || joint.isSkeletonJoint);
-        if (applyUpAxisZRotation && joint.parentIndex == -1) {
+        /*if (applyUpAxisZRotation && joint.parentIndex == -1) {
             joint.rotation *= upAxisZRotation;
             joint.translation = upAxisZRotation * joint.translation;
-        }
+        }*/
         glm::quat combinedRotation = joint.preRotation * joint.rotation * joint.postRotation;
         if (joint.parentIndex == -1) {
             joint.transform = hfmModel.offset * glm::translate(joint.translation) * joint.preTransform *
@@ -1417,9 +1417,6 @@ HFMModel* FBXSerializer::extractHFMModel(const hifi::VariantHash& mapping, const
         hfmModel.joints.push_back(joint);
     }
 
-    hfmModel.bindExtents.reset();
-    hfmModel.meshExtents.reset();
-
     // Create the Material Library
     consolidateHFMMaterials();
 
@@ -1492,15 +1489,6 @@ HFMModel* FBXSerializer::extractHFMModel(const hifi::VariantHash& mapping, const
             }
             const uint32_t transformIndex = (indexOfModelID == -1) ? 0 : (uint32_t)indexOfModelID;
 
-            // accumulate local transforms
-            glm::mat4 globalTransform = hfmModel.joints[transformIndex].globalTransform;
-            // compute the mesh extents from the transformed vertices
-            for (const glm::vec3& vertex : mesh.vertices) {
-                glm::vec3 transformedVertex = glm::vec3(globalTransform * glm::vec4(vertex, 1.0f));
-                hfmModel.meshExtents.minimum = glm::min(hfmModel.meshExtents.minimum, transformedVertex);
-                hfmModel.meshExtents.maximum = glm::max(hfmModel.meshExtents.maximum, transformedVertex);
-            }
-
             // partShapes will be added to meshShapes at the very end
             std::vector<hfm::Shape> partShapes { mesh.parts.size() };
             for (uint32_t i = 0; i < (uint32_t)partShapes.size(); ++i) {
@@ -1515,14 +1503,6 @@ HFMModel* FBXSerializer::extractHFMModel(const hifi::VariantHash& mapping, const
                     shape.material = materialIt->second;
                 } else {
                     qCDebug(modelformat) << "Unknown material ? " << matName;
-                }
-
-                shape.transformedExtents.reset();
-                // compute the shape extents from the transformed vertices
-                for (const glm::vec3& vertex : mesh.vertices) {
-                    glm::vec3 transformedVertex = glm::vec3(globalTransform * glm::vec4(vertex, 1.0f));
-                    shape.transformedExtents.minimum = glm::min(shape.transformedExtents.minimum, transformedVertex);
-                    shape.transformedExtents.maximum = glm::max(shape.transformedExtents.maximum, transformedVertex);
                 }
             }
 
@@ -1610,6 +1590,7 @@ HFMModel* FBXSerializer::extractHFMModel(const hifi::VariantHash& mapping, const
                         hfmCluster.jointIndex = (uint32_t)indexOfJointID;
                     }
 
+                    glm::mat4& globalTransform = hfmModel.joints[transformIndex].globalTransform;
                     hfmCluster.inverseBindMatrix = glm::inverse(fbxCluster.transformLink) * globalTransform;
 
                     // slam bottom row to (0, 0, 0, 1), we KNOW this is not a perspective matrix and
@@ -1719,15 +1700,17 @@ HFMModel* FBXSerializer::extractHFMModel(const hifi::VariantHash& mapping, const
     }
 
     if (applyUpAxisZRotation) {
-        hfmModelPtr->meshExtents.transform(glm::mat4_cast(upAxisZRotation));
         hfmModelPtr->bindExtents.transform(glm::mat4_cast(upAxisZRotation));
-        for (auto& shape : hfmModelPtr->shapes) {
-            shape.transformedExtents.transform(glm::mat4_cast(upAxisZRotation));
-        }
         for (auto& joint : hfmModelPtr->joints) {
+            if (joint.parentIndex == -1) {
+                joint.rotation *= upAxisZRotation;
+                joint.translation = upAxisZRotation * joint.translation;
+                joint.transform = joint.transform * glm::mat4_cast(upAxisZRotation);
+            }
             joint.globalTransform = joint.globalTransform * glm::mat4_cast(upAxisZRotation);
         }
     }
+
     return hfmModelPtr;
 }
 
