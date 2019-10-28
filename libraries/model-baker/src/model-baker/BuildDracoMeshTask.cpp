@@ -51,6 +51,35 @@ std::vector<hifi::ByteArray> createMaterialList(const hfm::Mesh& mesh) {
     return materialList;
 }
 
+std::vector<std::vector<hifi::ByteArray>> createMaterialLists(const std::vector<hfm::Shape>& shapes, const std::vector<hfm::Mesh>& meshes, const std::vector<hfm::Material>& materials) {
+    std::vector<std::vector<uint32_t>> materialIDLists;
+    materialIDLists.reserve(meshes.size());
+    for (const auto& mesh : meshes) {
+        materialIDLists.emplace_back(mesh.parts.size(), hfm::UNDEFINED_KEY);
+    }
+    for (const auto& shape : shapes) {
+        materialIDLists[shape.mesh][shape.meshPart] = shape.material;
+    }
+
+    std::vector<std::vector<hifi::ByteArray>> materialLists;
+    materialLists.reserve(materialIDLists.size());
+    for (const auto& materialIDList : materialIDLists) {
+        materialLists.emplace_back();
+        materialLists.reserve(materialIDList.size());
+        auto& materialList = materialLists.back();
+        for (const uint32_t materialID : materialIDList) {
+            hifi::ByteArray materialName;
+            if (materialID < materials.size()) {
+                const auto& material = materials[materialID];
+                materialName = QVariant(material.name).toByteArray();
+            }
+            materialList.push_back(materialName);
+        }
+    }
+
+    return materialLists;
+}
+
 std::tuple<std::unique_ptr<draco::Mesh>, bool> createDracoMesh(const hfm::Mesh& mesh, const std::vector<glm::vec3>& normals, const std::vector<glm::vec3>& tangents, const std::vector<hifi::ByteArray>& materialList) {
     Q_ASSERT(normals.size() == 0 || (int)normals.size() == mesh.vertices.size());
     Q_ASSERT(mesh.colors.size() == 0 || mesh.colors.size() == mesh.vertices.size());
@@ -214,26 +243,28 @@ void BuildDracoMeshTask::run(const baker::BakeContextPointer& context, const Inp
 #ifdef Q_OS_ANDROID
     qCWarning(model_baker) << "BuildDracoMesh is disabled on Android. Output meshes will be empty.";
 #else
-    const auto& meshes = input.get0();
-    const auto& normalsPerMesh = input.get1();
-    const auto& tangentsPerMesh = input.get2();
+    const auto& shapes = input.get0();
+    const auto& meshes = input.get1();
+    const auto& materials = input.get2();
+    const auto& normalsPerMesh = input.get3();
+    const auto& tangentsPerMesh = input.get4();
     auto& dracoBytesPerMesh = output.edit0();
     auto& dracoErrorsPerMesh = output.edit1();
     auto& materialLists = output.edit2();
+
+    materialLists = createMaterialLists(shapes, meshes, materials);
 
     dracoBytesPerMesh.reserve(meshes.size());
     // vector<bool> is an exception to the std::vector conventions as it is a bit field
     // So a bool reference to an element doesn't work
     dracoErrorsPerMesh.resize(meshes.size());
-    materialLists.reserve(meshes.size());
     for (size_t i = 0; i < meshes.size(); i++) {
         const auto& mesh = meshes[i];
         const auto& normals = baker::safeGet(normalsPerMesh, i);
         const auto& tangents = baker::safeGet(tangentsPerMesh, i);
         dracoBytesPerMesh.emplace_back();
         auto& dracoBytes = dracoBytesPerMesh.back();
-        materialLists.push_back(createMaterialList(mesh));
-        const auto& materialList = materialLists.back();
+        const auto& materialList = materialLists[i];
 
         bool dracoError;
         std::unique_ptr<draco::Mesh> dracoMesh;
