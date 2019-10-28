@@ -1018,6 +1018,8 @@ bool GLTFSerializer::buildGeometry(HFMModel& hfmModel, const hifi::VariantHash& 
             joint.transform = hfmModel.offset * joint.transform;
             joint.globalTransform = hfmModel.offset * joint.globalTransform;
         }
+        // TODO: Remove after testing? Or perhaps this is correct...
+        joint.globalTransform = joint.localTransform;
 
         joint.name = node.name;
         joint.isSkeletonJoint = false;

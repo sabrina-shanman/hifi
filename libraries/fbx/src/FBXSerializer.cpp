@@ -1308,6 +1308,11 @@ HFMModel* FBXSerializer::extractHFMModel(const hifi::VariantHash& mapping, const
         joint.parentIndex = fbxModel.parentIndex;
         uint32_t jointIndex = (uint32_t)hfmModel.joints.size();
 
+#define DBGVAL(VAL) qDebug(modelformat) << "    " << #VAL << ##VAL;
+#define DBGVEC3(VAL) qDebug(modelformat) << "    " << #VAL << ##VAL.x << ##VAL.y << ##VAL.z;
+#define DBGQUAT(VAL) qDebug(modelformat) << "    " << #VAL << ##VAL.x << ##VAL.y << ##VAL.z << ##VAL.w;
+#define DBGMAT4(VAL) qDebug(modelformat) << "    " << #VAL << ##VAL[0][0] << ##VAL[0][1] << ##VAL[0][2] << ##VAL[0][3] << "," << ##VAL[1][0] << ##VAL[1][1] << ##VAL[1][2] << ##VAL[1][3] << "," << ##VAL[2][0] << ##VAL[2][1] << ##VAL[2][2] << "," << ##VAL[2][3] << ##VAL[3][0] << ##VAL[3][1] << ##VAL[3][2] << ##VAL[3][3];
+
         joint.translation = fbxModel.translation; // these are usually in centimeters
         joint.preTransform = fbxModel.preTransform;
         joint.preRotation = fbxModel.preRotation;
@@ -1318,10 +1323,25 @@ HFMModel* FBXSerializer::extractHFMModel(const hifi::VariantHash& mapping, const
         joint.rotationMax = fbxModel.rotationMax;
 
         joint.hasGeometricOffset = fbxModel.hasGeometricOffset;
+        // TODO: (UN)Restore after testing
         joint.geometricTranslation = fbxModel.geometricTranslation;
         joint.geometricRotation = fbxModel.geometricRotation;
         joint.geometricScaling = fbxModel.geometricScaling;
         joint.isSkeletonJoint = fbxModel.isLimbNode;
+        // TODO: Remove after testing
+        {
+            qDebug(modelformat) << "Joint " << hfmModel.joints.size();
+            DBGVEC3(joint.translation);
+            DBGMAT4(joint.preTransform);
+            DBGQUAT(joint.preRotation);
+            DBGQUAT(joint.rotation);
+            DBGQUAT(joint.postRotation);
+            DBGMAT4(joint.postTransform);
+            DBGVAL(joint.hasGeometricOffset);
+            DBGVEC3(joint.geometricTranslation);
+            DBGVEC3(joint.geometricRotation);
+            DBGVEC3(joint.geometricScaling);
+        }
         hfmModel.hasSkeletonJoints = (hfmModel.hasSkeletonJoints || joint.isSkeletonJoint);
         /*if (applyUpAxisZRotation && joint.parentIndex == -1) {
             joint.rotation *= upAxisZRotation;
@@ -1417,6 +1437,9 @@ HFMModel* FBXSerializer::extractHFMModel(const hifi::VariantHash& mapping, const
         hfmModel.joints.push_back(joint);
     }
 
+    hfmModel.bindExtents.reset();
+    hfmModel.meshExtents.reset();
+
     // Create the Material Library
     consolidateHFMMaterials();
 
@@ -1465,6 +1488,10 @@ HFMModel* FBXSerializer::extractHFMModel(const hifi::VariantHash& mapping, const
         const QString& meshID = it.key();
         const ExtractedMesh& extracted = it.value();
         const auto& partMaterialTextures = extracted.partMaterialTextures;
+        // TODO: Remove after testing
+        if (hfmModel.meshes.size() == 111) {
+            qDebug(modelformat) << "Mesh 111!";
+        }
 
         uint32_t meshIndex = (uint32_t)hfmModel.meshes.size();
         meshIDsToMeshIndices.insert(it.key(), meshIndex);
@@ -1697,6 +1724,12 @@ HFMModel* FBXSerializer::extractHFMModel(const hifi::VariantHash& mapping, const
                 hfmModel.meshIndicesToModelNames.insert(meshIndex, modelName);
             }
         }
+    }
+
+    // TODO: Remove this if it doesn't work
+    // Reset all shape extents so they will be calculated in the hfm prep step
+    for (auto& shape : hfmModel.shapes) {
+        shape.transformedExtents.reset();
     }
 
     if (applyUpAxisZRotation) {

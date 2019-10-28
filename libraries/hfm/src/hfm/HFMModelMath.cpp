@@ -58,11 +58,15 @@ void calculateExtentsForShape(hfm::Shape& shape, const std::vector<hfm::Mesh>& m
 
 void calculateExtentsForModel(Extents& modelExtents, const std::vector<hfm::Shape>& shapes) {
     modelExtents.reset();
+    bool tooBig = false; qDebug(modelformat) << __FUNCTION__ << ": modelExtents starting at " << modelExtents; // TODO: Remove after testing
 
     for (size_t i = 0; i < shapes.size(); ++i) {
         const auto& shape = shapes[i];
         const auto& shapeExtents = shape.transformedExtents;
+        qDebug(modelformat) << "shape mesh: " << shape.mesh << ", meshPart: " << shape.meshPart; // TODO: Remove after testing
+        qDebug(modelformat) << "added shapeExtents " << shapeExtents; // TODO: Remove after testing
         modelExtents.addExtents(shapeExtents);
+        qDebug(modelformat) << "modelExtents is now " << modelExtents;
     }
 }
 
