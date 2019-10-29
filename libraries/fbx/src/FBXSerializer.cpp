@@ -1419,6 +1419,8 @@ HFMModel* FBXSerializer::extractHFMModel(const hifi::VariantHash& mapping, const
         hfmModel.joints.push_back(joint);
     }
 
+    qDebug(modelformat) << "WARNING: Not full model being dumped!"; hfmModel.debugDump(); // TODO: Remove after testing
+
     hfmModel.bindExtents.reset();
     hfmModel.meshExtents.reset();
 
