@@ -49,18 +49,18 @@ template <> void payloadRender(const MeshPartPayload::Pointer& payload, RenderAr
 }
 }
 
-MeshPartPayload::MeshPartPayload(const std::shared_ptr<const graphics::Mesh>& mesh, int partIndex, graphics::MaterialPointer material) {
-    updateMeshPart(mesh, partIndex);
+MeshPartPayload::MeshPartPayload(const std::shared_ptr<const graphics::Mesh>& mesh, int partIndex, const graphics::Box& localBound, graphics::MaterialPointer material) {
+    updateMeshPart(mesh, partIndex, localBound);
     addMaterial(graphics::MaterialLayer(material, 0));
 }
 
-void MeshPartPayload::updateMeshPart(const std::shared_ptr<const graphics::Mesh>& drawMesh, int partIndex) {
+void MeshPartPayload::updateMeshPart(const std::shared_ptr<const graphics::Mesh>& drawMesh, int partIndex, const graphics::Box& localBound) {
     _drawMesh = drawMesh;
     if (_drawMesh) {
         auto vertexFormat = _drawMesh->getVertexFormat();
         _hasColorAttrib = vertexFormat->hasAttribute(gpu::Stream::COLOR);
         _drawPart = _drawMesh->getPartBuffer().get<graphics::Mesh::Part>(partIndex);
-        _localBound = _drawMesh->evalPartBound(partIndex);
+        _localBound = localBound;
     }
 }
 
@@ -206,14 +206,18 @@ ModelMeshPartPayload::ModelMeshPartPayload(ModelPointer model, int meshIndex, in
 
     assert(model && model->isLoaded());
 
-    auto shape = model->getHFMModel().shapes[shapeIndex];
+    const auto& hfmModel = model->getHFMModel();
+    auto shape = hfmModel.shapes[shapeIndex];
     assert(shape.mesh == meshIndex);
     assert(shape.meshPart == partIndex);
+
+    const auto& mesh = hfmModel.meshes[meshIndex];
+    const auto partExtents = mesh.triangleListMesh.partExtents[partIndex];
 
     auto& modelMesh = model->getNetworkModel()->getMeshes().at(_meshIndex);
     _meshNumVertices = (int)modelMesh->getNumVertices();
 
-    updateMeshPart(modelMesh, partIndex);
+    updateMeshPart(modelMesh, partIndex, partExtents);
 
     Transform renderTransform = transform;   
     const Model::ShapeState& shapeState = model->getShapeState(shapeIndex);

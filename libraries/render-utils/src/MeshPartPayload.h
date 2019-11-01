@@ -27,7 +27,7 @@ class Model;
 class MeshPartPayload {
 public:
     MeshPartPayload() = default;
-    MeshPartPayload(const std::shared_ptr<const graphics::Mesh>& mesh, int partIndex, graphics::MaterialPointer material);
+    MeshPartPayload(const std::shared_ptr<const graphics::Mesh>& mesh, int partIndex, const graphics::Box& localBound, graphics::MaterialPointer material);
     virtual ~MeshPartPayload() = default;
 
     typedef render::Payload<MeshPartPayload> Payload;
@@ -35,7 +35,7 @@ public:
 
     virtual void updateKey(const render::ItemKey& key);
 
-    virtual void updateMeshPart(const std::shared_ptr<const graphics::Mesh>& drawMesh, int partIndex);
+    virtual void updateMeshPart(const std::shared_ptr<const graphics::Mesh>& drawMesh, int partIndex, const graphics::Box& localBound);
 
     virtual void notifyLocationChanged() {}
     void updateTransform(const Transform& transform);
