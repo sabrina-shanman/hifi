@@ -355,16 +355,158 @@ bool RenderableModelEntityItem::isReadyToComputeShape() const {
     return true;
 }
 
-void RenderableModelEntityItem::computeShapeInfo(ShapeInfo& shapeInfo) {
-    const uint32_t TRIANGLE_STRIDE = 3;
-    const uint32_t QUAD_STRIDE = 4;
+glm::mat4 getLocalTransformForShape(const hfm::Shape& shape, const hfm::Model& hfmModel, const glm::mat4& shapeInfoPreTransform, const std::vector<glm::mat4>& rigJointTransforms) {
+    if (shape.joint != hfm::UNDEFINED_KEY) {
+        auto rigJointTransform = rigJointTransforms[shape.joint];
+        if (shape.skinDeformer != hfm::UNDEFINED_KEY) {
+            const auto& skinDeformer = hfmModel.skinDeformers[shape.skinDeformer];
+            glm::mat4 inverseBindMatrix;
+            if (!skinDeformer.clusters.empty()) {
+                const auto& cluster = skinDeformer.clusters.back();
+                inverseBindMatrix = cluster.inverseBindMatrix;
+            }
+            return shapeInfoPreTransform * rigJointTransform * inverseBindMatrix;
+        } else {
+            return shapeInfoPreTransform * rigJointTransform;
+        }
+    } else {
+        return shapeInfoPreTransform;
+    }
+}
 
+void computeShapeInfoForModel(ShapeInfo& shapeInfo, const ShapeType& desiredShapeType, const hfm::Model& hfmModel, const QUrl& modelURL, const glm::mat4& shapeInfoPreTransform, const std::vector<glm::mat4>& rigJointTransforms) {
+    const ShapeType& desiredShapeType = shapeInfo.getType();
+
+    ShapeInfo::TriangleIndices& triangleIndices = shapeInfo.getTriangleIndices();
+    triangleIndices.clear();
+    ShapeInfo::PointCollection& pointCollection = shapeInfo.getPointCollection();
+    pointCollection.clear();
+
+    const bool hasPointListPerShape = (desiredShapeType == SHAPE_TYPE_COMPOUND || desiredShapeType == SHAPE_TYPE_SIMPLE_COMPOUND);
+    const bool copyVerticesUsingInputIndices = (desiredShapeType == SHAPE_TYPE_COMPOUND || desiredShapeType == SHAPE_TYPE_SIMPLE_COMPOUND);
+    const bool copyMeshIndices = (desiredShapeType == SHAPE_TYPE_STATIC_MESH);
+    const bool generateIndicesFromVertices = (desiredShapeType == SHAPE_TYPE_SIMPLE_COMPOUND);
+    const bool hasIndices = copyMeshIndices || generateIndicesFromVertices;
+    
+    uint32_t pointListCount = 1;
+    if (hasPointListPerShape) {
+        uint32_t collisionMeshCount = 0;
+        uint32_t lastMesh = hfm::UNDEFINED_KEY;
+        for (const auto& shape : hfmModel.shapes) {
+            if (shape.mesh != lastMesh) {
+                lastMesh = shape.mesh;
+                ++collisionMeshCount;
+            }
+        }
+
+        const uint32_t MAX_ALLOWED_MESH_COUNT = 1000;
+        if (collisionMeshCount > MAX_ALLOWED_MESH_COUNT) {
+            // too many will cause the deadlock timer to throw...
+            qWarning() << "model" << modelURL << "has too many collision meshes" << collisionMeshCount << "and will collide as a box.";
+            shapeInfo.setParams(SHAPE_TYPE_BOX, shapeInfo.getHalfExtents());
+            return;
+        }
+
+        pointListCount = collisionMeshCount;
+    }
+    
+    {
+        size_t vertexCount = 0;
+        uint32_t lastMesh = hfm::UNDEFINED_KEY;
+        for (const auto& shape : hfmModel.shapes) {
+            if (shape.mesh != lastMesh) {
+                lastMesh = shape.mesh;
+                const auto& mesh = hfmModel.meshes[shape.mesh];
+                const auto& triangleListMesh = mesh.triangleListMesh;
+                // Added once per instance per mesh
+                vertexCount += triangleListMesh.vertices.size();
+            }
+        }
+        const size_t MAX_VERTICES_PER_STATIC_MESH = 1e6;
+        if (vertexCount > MAX_VERTICES_PER_STATIC_MESH) {
+            qWarning() << "model" << modelURL << "has too many vertices" << vertexCount << "and will collide as a box.";
+            shapeInfo.setParams(SHAPE_TYPE_BOX, shapeInfo.getHalfExtents());
+            return;
+        }
+    }
+
+    pointCollection.reserve(pointListCount);
+    if (!hasPointListPerShape) {
+        pointCollection.emplace_back();
+    }
+
+    uint32_t numHFMShapes = (uint32_t)hfmModel.shapes.size();
+    uint32_t lastMesh = hfm::UNDEFINED_KEY;
+    uint32_t lastMeshPart = hfm::UNDEFINED_KEY;
+    for (uint32_t s = 0; s < numHFMShapes; ++s) {
+        const HFMShape& shape = hfmModel.shapes[s];
+        glm::mat4 localTransform = getLocalTransformForShape(shape, hfmModel, shapeInfoPreTransform, rigJointTransforms);
+
+        if (hasPointListPerShape) {
+            pointCollection.emplace_back();
+        }
+        ShapeInfo::PointList& pointList = pointCollection.back();
+
+
+    }
+    
+    
+
+
+}
+
+void RenderableModelEntityItem::computeShapeInfo(ShapeInfo& shapeInfo) {
     ShapeType type = getShapeType();
+
+    if (type != SHAPE_TYPE_COMPOUND &&
+        type != SHAPE_TYPE_SIMPLE_HULL &&
+        type != SHAPE_TYPE_SIMPLE_COMPOUND &&
+        type != SHAPE_TYPE_STATIC_MESH) {
+        EntityItem::computeShapeInfo(shapeInfo);
+        return;
+    }
 
     auto model = getModel();
     if (!model || !model->isLoaded()) {
         type = SHAPE_TYPE_NONE;
+        EntityItem::computeShapeInfo(shapeInfo);
+        return;
     }
+
+    // TODO: Point to the real model
+    hfm::Model hfmModel;
+    // TODO: Point to the real dimensions
+    glm::vec3 dimensions;
+
+    // scale and shift
+    glm::vec3 extentsSize = hfmModel.meshExtents.size();
+    glm::vec3 scaleToFit = dimensions / extentsSize;
+    for (int32_t i = 0; i < 3; ++i) {
+        if (extentsSize[i] < 1.0e-6f) {
+            scaleToFit[i] = 1.0f;
+        }
+    }
+    glm::mat4 scaleToFitTransform = glm::scale(scaleToFit);
+    glm::mat4 invRegistrationOffset = glm::translate(dimensions * (getRegistrationPoint() - ENTITY_ITEM_DEFAULT_REGISTRATION_POINT));
+    glm::mat4 shapeInfoPreTransform = scaleToFitTransform * invRegistrationOffset;
+
+    // The collision will default to a box if the geometry is too complicated
+    shapeInfo.setParams(SHAPE_TYPE_BOX, 0.5f * dimensions);
+    // TODO: computeShapeInfoForModel
+    // TODO: Other stuff
+
+    if (shapeInfo.getType() != SHAPE_TYPE_BOX) {
+        if (type == SHAPE_TYPE_COMPOUND) {
+            shapeInfo.setParams(type, dimensions, getCompoundShapeURL());
+        } else {
+            shapeInfo.setParams(type, 0.5f * dimensions, getModelURL());
+        }
+        adjustShapeInfoByRegistration(shapeInfo);
+    }
+
+
+
+    uint32_t TRIANGLE_STRIDE = 3;
 
     if (type == SHAPE_TYPE_COMPOUND) {
         if (!_collisionGeometryResource || !_collisionGeometryResource->isLoaded()) {
@@ -484,7 +626,6 @@ void RenderableModelEntityItem::computeShapeInfo(ShapeInfo& shapeInfo) {
         ShapeInfo::TriangleIndices& triangleIndices = shapeInfo.getTriangleIndices();
         triangleIndices.clear();
 
-        Extents extents;
         int32_t shapeCount = 0;
         int32_t instanceIndex = 0;
 
@@ -598,10 +739,6 @@ void RenderableModelEntityItem::computeShapeInfo(ShapeInfo& shapeInfo) {
                     points.push_back(point);
                     ++vertexItr;
                 }
-                for (const auto& instanceShapeIndex : instanceShapes) {
-                    const auto& instanceShape = hfmModel.shapes[instanceShapeIndex];
-                    extents.addExtents(instanceShape.transformedExtents);
-                }
 
                 if (type == SHAPE_TYPE_STATIC_MESH) {
                     // copy into triangleIndices
@@ -656,7 +793,7 @@ void RenderableModelEntityItem::computeShapeInfo(ShapeInfo& shapeInfo) {
         }
 
         // scale and shift
-        glm::vec3 extentsSize = extents.size();
+        glm::vec3 extentsSize = hfmModel.meshExtents.size();
         glm::vec3 scaleToFit = dimensions / extentsSize;
         for (int32_t i = 0; i < 3; ++i) {
             if (extentsSize[i] < 1.0e-6f) {
