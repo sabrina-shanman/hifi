@@ -356,8 +356,10 @@ bool RenderableModelEntityItem::isReadyToComputeShape() const {
 }
 
 glm::mat4 getLocalTransformForShape(const hfm::Shape& shape, const hfm::Model& hfmModel, const glm::mat4& shapeInfoPreTransform, const std::vector<glm::mat4>& rigJointTransforms) {
+    qDebug(entitiesrenderer) << "    shapeInfoPreTransform " << shapeInfoPreTransform[0][0] << shapeInfoPreTransform[0][1] << shapeInfoPreTransform[0][2] << shapeInfoPreTransform[0][3] << shapeInfoPreTransform[1][0] << shapeInfoPreTransform[1][1] << shapeInfoPreTransform[1][2] << shapeInfoPreTransform[1][3] << shapeInfoPreTransform[2][0] << shapeInfoPreTransform[2][1] << shapeInfoPreTransform[2][2] << shapeInfoPreTransform[2][3] << shapeInfoPreTransform[3][0] << shapeInfoPreTransform[3][1] << shapeInfoPreTransform[3][2] << shapeInfoPreTransform[3][3]; // TODO: Remove after testing
     if (shape.joint != hfm::UNDEFINED_KEY) {
         auto rigJointTransform = rigJointTransforms[shape.joint];
+        qDebug(entitiesrenderer) << "    rigJointTransform " << rigJointTransform[0][0] << rigJointTransform[0][1] << rigJointTransform[0][2] << rigJointTransform[0][3] << rigJointTransform[1][0] << rigJointTransform[1][1] << rigJointTransform[1][2] << rigJointTransform[1][3] << rigJointTransform[2][0] << rigJointTransform[2][1] << rigJointTransform[2][2] << rigJointTransform[2][3] << rigJointTransform[3][0] << rigJointTransform[3][1] << rigJointTransform[3][2] << rigJointTransform[3][3]; // TODO: Remove after testing
         if (shape.skinDeformer != hfm::UNDEFINED_KEY) {
             const auto& skinDeformer = hfmModel.skinDeformers[shape.skinDeformer];
             glm::mat4 inverseBindMatrix;
@@ -365,11 +367,13 @@ glm::mat4 getLocalTransformForShape(const hfm::Shape& shape, const hfm::Model& h
                 const auto& cluster = skinDeformer.clusters.back();
                 inverseBindMatrix = cluster.inverseBindMatrix;
             }
+            qDebug(entitiesrenderer) << "    inverseBindMatrix " << inverseBindMatrix[0][0] << inverseBindMatrix[0][1] << inverseBindMatrix[0][2] << inverseBindMatrix[0][3] << inverseBindMatrix[1][0] << inverseBindMatrix[1][1] << inverseBindMatrix[1][2] << inverseBindMatrix[1][3] << inverseBindMatrix[2][0] << inverseBindMatrix[2][1] << inverseBindMatrix[2][2] << inverseBindMatrix[2][3] << inverseBindMatrix[3][0] << inverseBindMatrix[3][1] << inverseBindMatrix[3][2] << inverseBindMatrix[3][3]; // TODO: Remove after testing
             return shapeInfoPreTransform * rigJointTransform * inverseBindMatrix;
         } else {
             return shapeInfoPreTransform * rigJointTransform;
         }
     } else {
+        qDebug(entitiesrenderer) << "    no joint ID"; // TODO: Remove after testing
         return shapeInfoPreTransform;
     }
 }
@@ -382,7 +386,8 @@ void computeShapeInfoForModel(ShapeInfo& shapeInfo, const hfm::Model& hfmModel, 
     ShapeInfo::PointCollection& pointCollection = shapeInfo.getPointCollection();
     pointCollection.clear();
 
-    const bool hasPointListPerShape = (shapeType == SHAPE_TYPE_COMPOUND || shapeType == SHAPE_TYPE_SIMPLE_COMPOUND);
+    const bool hasPointListPerShape = (shapeType == SHAPE_TYPE_COMPOUND);
+    const bool hasPointListPerMesh = (shapeType == SHAPE_TYPE_SIMPLE_COMPOUND);
     const bool copyVerticesUsingInputIndices = (shapeType == SHAPE_TYPE_COMPOUND);
     const bool copyInputMeshVertices = (shapeType == SHAPE_TYPE_SIMPLE_HULL || shapeType == SHAPE_TYPE_SIMPLE_COMPOUND || shapeType == SHAPE_TYPE_STATIC_MESH);
     const bool copyMeshIndices = (shapeType == SHAPE_TYPE_STATIC_MESH); // Index offset will be applied if needed
@@ -432,57 +437,78 @@ void computeShapeInfoForModel(ShapeInfo& shapeInfo, const hfm::Model& hfmModel, 
     }
 
     pointCollection.reserve(pointListCount);
-    if (!hasPointListPerShape) {
+    if (!hasPointListPerShape && !hasPointListPerMesh) {
         pointCollection.emplace_back();
     }
 
     uint32_t numHFMShapes = (uint32_t)hfmModel.shapes.size();
     uint32_t lastMesh = hfm::UNDEFINED_KEY;
     uint32_t meshIndexOffset = 0;
+    qDebug(entitiesrenderer) << __FUNCTION__ << "for url " << modelURL; // TODO: Remove after testing
+    qDebug(entitiesrenderer) << "shapeType " << shapeType; // TODO: Remove after testing
+    qDebug(entitiesrenderer) << "hasPointListPerShape? " << hasPointListPerShape; // TODO: Remove after testing
+    qDebug(entitiesrenderer) << "copyVerticesUsingInputIndices? " << copyVerticesUsingInputIndices; // TODO: Remove after testing
+    qDebug(entitiesrenderer) << "copyInputMeshVertices? " << copyInputMeshVertices; // TODO: Remove after testing
+    qDebug(entitiesrenderer) << "copyMeshIndices? " << copyMeshIndices; // TODO: Remove after testing
+    qDebug(entitiesrenderer) << "generateIndicesFromVertices? " << generateIndicesFromVertices; // TODO: Remove after testing
+    qDebug(entitiesrenderer) << "hasIndices? " << hasIndices; // TODO: Remove after testing
     for (uint32_t s = 0; s != numHFMShapes; ++s) {
+        qDebug(entitiesrenderer) << "shape " << s; // TODO: Remove after testing
         const hfm::Shape& shape = hfmModel.shapes[s];
         const auto& mesh = hfmModel.meshes[shape.mesh];
+        qDebug(entitiesrenderer) << "    mesh " << shape.mesh; // TODO: Remove after testing
         const auto& triangleListMesh = mesh.triangleListMesh;
         const auto& part = triangleListMesh.parts[shape.meshPart];
+        qDebug(entitiesrenderer) << "    part " << shape.meshPart; // TODO: Remove after testing
         int partStart = part.x;
         int partSize = part.y;
         int partEnd = partStart + partSize;
 
         glm::mat4 localTransform = getLocalTransformForShape(shape, hfmModel, shapeInfoPreTransform, rigJointTransforms);
+        qDebug(entitiesrenderer) << "    transform " << localTransform[0][0] << localTransform[0][1] << localTransform[0][2] << localTransform[0][3] << localTransform[1][0] << localTransform[1][1] << localTransform[1][2] << localTransform[1][3] << localTransform[2][0] << localTransform[2][1] << localTransform[2][2] << localTransform[2][3] << localTransform[3][0] << localTransform[3][1] << localTransform[3][2] << localTransform[3][3]; // TODO: Remove after testing
 
         if (hasPointListPerShape) {
             pointCollection.emplace_back();
+        } else if (hasPointListPerMesh) {
+            if (shape.mesh != lastMesh) {
+                pointCollection.emplace_back();
+            }
         }
         ShapeInfo::PointList& pointList = pointCollection.back();
 
         const uint32_t lastMeshIndexOffset = meshIndexOffset;
         if (copyVerticesUsingInputIndices) {
             meshIndexOffset = (uint32_t)pointList.size();
-            pointCollection.reserve(pointCollection.size() + partSize);
+            pointList.reserve(pointList.size() + partSize);
             for (int i = partStart; i < partEnd; ++i) {
                 const auto index = triangleListMesh.indices[(size_t)i];
                 const glm::vec3 point = triangleListMesh.vertices[index];
                 const glm::vec3 transformedPoint = glm::vec3(localTransform * glm::vec4(point, 1.0f));
                 pointList.push_back(transformedPoint);
             }
+            qDebug(entitiesrenderer) << "    added " << partSize << " points to new part"; // TODO: Remove after testing
         } else if (copyInputMeshVertices) {
             if (shape.mesh != lastMesh) {
                 meshIndexOffset = (uint32_t)pointList.size();
-                pointCollection.reserve(pointCollection.size() + triangleListMesh.vertices.size());
+                pointList.reserve(pointList.size() + triangleListMesh.vertices.size());
                 for (const auto& point : triangleListMesh.vertices) {
                     const glm::vec3 transformedPoint = glm::vec3(localTransform * glm::vec4(point, 1.0f));
                     pointList.push_back(transformedPoint);
                 }
+                qDebug(entitiesrenderer) << "    added " << triangleListMesh.vertices.size() << " points to new mesh"; // TODO: Remove after testing
             }
         }
         uint32_t pointsAddedLast = (uint32_t)pointList.size() - meshIndexOffset;
+        qDebug(entitiesrenderer) << "    pointList.size(): " << pointList.size(); // TODO: Remove after testing
+        qDebug(entitiesrenderer) << "    meshIndexOffset: " << meshIndexOffset; // TODO: Remove after testing
+        qDebug(entitiesrenderer) << "    pointsAddedLast: " << pointsAddedLast; // TODO: Remove after testing
 
         if (pointsAddedLast == 0 && shapeType == SHAPE_TYPE_COMPOUND) {
             // TODO: Better empty mesh sanitation that doesn't pop pointCollections mid-loop
             qCDebug(entitiesrenderer) << "Warning -- Collision meshPart has no faces";
             pointCollection.pop_back();
             pointsAddedLast = 0;
-            meshIndexOffset -= lastMeshIndexOffset;
+            meshIndexOffset = lastMeshIndexOffset;
             continue;
         }
 
@@ -574,7 +600,7 @@ void RenderableModelEntityItem::computeShapeInfo(ShapeInfo& shapeInfo) {
     const glm::mat4 shapeInfoPreTransform = scaleToFitTransform * invRegistrationOffset;
 
     // Set the shape type and default half extents. The collision will revert to a box with these dimensions if the geometry is too complicated
-    shapeInfo.setParams(shapeInfo.getType(), 0.5f * dimensions);
+    shapeInfo.setParams(type, 0.5f * dimensions);
 
     // Now, initialize the shapeInfo for the model case, either copying points/indices depending on what ShapeFactory wants, or reverting to a box if there is too much to copy.
     computeShapeInfoForModel(shapeInfo, hfmModel, modelURL, shapeInfoPreTransform, rigJointTransforms);
