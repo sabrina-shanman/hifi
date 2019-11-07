@@ -563,10 +563,10 @@ void RenderableModelEntityItem::computeShapeInfo(ShapeInfo& shapeInfo) {
     const glm::mat4 invRegistrationOffset = glm::translate(dimensions * (getRegistrationPoint() - ENTITY_ITEM_DEFAULT_REGISTRATION_POINT));
     const glm::mat4 shapeInfoPreTransform = scaleToFitTransform * invRegistrationOffset;
 
-    // The collision will default to a box if the geometry is too complicated
-    shapeInfo.setParams(SHAPE_TYPE_BOX, 0.5f * dimensions);
+    // Set the shape type and default half extents. The collision will revert to a box with these dimensions if the geometry is too complicated
+    shapeInfo.setParams(shapeInfo.getType(), 0.5f * dimensions);
 
-    // Now, copy the mesh information into the shapeInfo
+    // Now, initialize the shapeInfo for the model case, either copying points/indices depending on what ShapeFactory wants, or reverting to a box if there is too much to copy.
     computeShapeInfoForModel(shapeInfo, hfmModel, modelURL, shapeInfoPreTransform, rigJointTransforms);
 
     if (shapeInfo.getType() != SHAPE_TYPE_BOX) {
