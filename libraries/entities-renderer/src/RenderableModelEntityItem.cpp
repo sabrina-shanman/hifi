@@ -474,7 +474,7 @@ void computeShapeInfoForModel(ShapeInfo& shapeInfo, const hfm::Model& hfmModel, 
                 }
             }
         }
-        const uint32_t pointsAddedLast = pointList.size() - meshIndexOffset;
+        const uint32_t pointsAddedLast = (uint32_t)pointList.size() - meshIndexOffset;
 
         if (hasIndices) {
             if (copyMeshIndices) {
