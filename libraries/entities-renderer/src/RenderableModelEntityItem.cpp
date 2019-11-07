@@ -375,18 +375,18 @@ glm::mat4 getLocalTransformForShape(const hfm::Shape& shape, const hfm::Model& h
 }
 
 void computeShapeInfoForModel(ShapeInfo& shapeInfo, const hfm::Model& hfmModel, const QString& modelURL, const glm::mat4& shapeInfoPreTransform, const std::vector<glm::mat4>& rigJointTransforms) {
-    const ShapeType& desiredShapeType = shapeInfo.getType();
+    const ShapeType& shapeType = shapeInfo.getType();
 
     ShapeInfo::TriangleIndices& triangleIndices = shapeInfo.getTriangleIndices();
     triangleIndices.clear();
     ShapeInfo::PointCollection& pointCollection = shapeInfo.getPointCollection();
     pointCollection.clear();
 
-    const bool hasPointListPerShape = (desiredShapeType == SHAPE_TYPE_COMPOUND || desiredShapeType == SHAPE_TYPE_SIMPLE_COMPOUND);
-    const bool copyVerticesUsingInputIndices = (desiredShapeType == SHAPE_TYPE_COMPOUND);
-    const bool copyInputMeshVertices = (desiredShapeType == SHAPE_TYPE_SIMPLE_HULL || desiredShapeType == SHAPE_TYPE_SIMPLE_COMPOUND || desiredShapeType == SHAPE_TYPE_STATIC_MESH);
-    const bool copyMeshIndices = (desiredShapeType == SHAPE_TYPE_STATIC_MESH); // Index offset will be applied if needed
-    const bool generateIndicesFromVertices = (desiredShapeType == SHAPE_TYPE_SIMPLE_COMPOUND); // TODO: Do not require indices for SHAPE_TYPE_SIMPLE_COMPOUND, and have a more compact way of distinguishing mesh parts in ShapeInfo.
+    const bool hasPointListPerShape = (shapeType == SHAPE_TYPE_COMPOUND || shapeType == SHAPE_TYPE_SIMPLE_COMPOUND);
+    const bool copyVerticesUsingInputIndices = (shapeType == SHAPE_TYPE_COMPOUND);
+    const bool copyInputMeshVertices = (shapeType == SHAPE_TYPE_SIMPLE_HULL || shapeType == SHAPE_TYPE_SIMPLE_COMPOUND || shapeType == SHAPE_TYPE_STATIC_MESH);
+    const bool copyMeshIndices = (shapeType == SHAPE_TYPE_STATIC_MESH); // Index offset will be applied if needed
+    const bool generateIndicesFromVertices = (shapeType == SHAPE_TYPE_SIMPLE_COMPOUND); // TODO: Do not require indices for SHAPE_TYPE_SIMPLE_COMPOUND, and have a more compact way of distinguishing mesh parts in ShapeInfo.
     const bool hasIndices = copyMeshIndices || generateIndicesFromVertices;
     
     uint32_t pointListCount = 1;
@@ -455,6 +455,7 @@ void computeShapeInfoForModel(ShapeInfo& shapeInfo, const hfm::Model& hfmModel, 
         }
         ShapeInfo::PointList& pointList = pointCollection.back();
 
+        const uint32_t lastMeshIndexOffset = meshIndexOffset;
         if (copyVerticesUsingInputIndices) {
             meshIndexOffset = (uint32_t)pointList.size();
             pointCollection.reserve(pointCollection.size() + partSize);
@@ -474,7 +475,16 @@ void computeShapeInfoForModel(ShapeInfo& shapeInfo, const hfm::Model& hfmModel, 
                 }
             }
         }
-        const uint32_t pointsAddedLast = (uint32_t)pointList.size() - meshIndexOffset;
+        uint32_t pointsAddedLast = (uint32_t)pointList.size() - meshIndexOffset;
+
+        if (pointsAddedLast == 0 && shapeType == SHAPE_TYPE_COMPOUND) {
+            // TODO: Better empty mesh sanitation that doesn't pop pointCollections mid-loop
+            qCDebug(entitiesrenderer) << "Warning -- Collision meshPart has no faces";
+            pointCollection.pop_back();
+            pointsAddedLast = 0;
+            meshIndexOffset -= lastMeshIndexOffset;
+            continue;
+        }
 
         if (hasIndices) {
             if (copyMeshIndices) {
