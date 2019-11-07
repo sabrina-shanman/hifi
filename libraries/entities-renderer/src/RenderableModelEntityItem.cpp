@@ -374,7 +374,7 @@ glm::mat4 getLocalTransformForShape(const hfm::Shape& shape, const hfm::Model& h
     }
 }
 
-void computeShapeInfoForModel(ShapeInfo& shapeInfo, const ShapeType& desiredShapeType, const hfm::Model& hfmModel, const QUrl& modelURL, const glm::mat4& shapeInfoPreTransform, const std::vector<glm::mat4>& rigJointTransforms) {
+void computeShapeInfoForModel(ShapeInfo& shapeInfo, const hfm::Model& hfmModel, const QString& modelURL, const glm::mat4& shapeInfoPreTransform, const std::vector<glm::mat4>& rigJointTransforms) {
     const ShapeType& desiredShapeType = shapeInfo.getType();
 
     ShapeInfo::TriangleIndices& triangleIndices = shapeInfo.getTriangleIndices();
@@ -383,9 +383,10 @@ void computeShapeInfoForModel(ShapeInfo& shapeInfo, const ShapeType& desiredShap
     pointCollection.clear();
 
     const bool hasPointListPerShape = (desiredShapeType == SHAPE_TYPE_COMPOUND || desiredShapeType == SHAPE_TYPE_SIMPLE_COMPOUND);
-    const bool copyVerticesUsingInputIndices = (desiredShapeType == SHAPE_TYPE_COMPOUND || desiredShapeType == SHAPE_TYPE_SIMPLE_COMPOUND);
-    const bool copyMeshIndices = (desiredShapeType == SHAPE_TYPE_STATIC_MESH);
-    const bool generateIndicesFromVertices = (desiredShapeType == SHAPE_TYPE_SIMPLE_COMPOUND);
+    const bool copyVerticesUsingInputIndices = (desiredShapeType == SHAPE_TYPE_COMPOUND);
+    const bool copyInputMeshVertices = (desiredShapeType == SHAPE_TYPE_SIMPLE_HULL || desiredShapeType == SHAPE_TYPE_SIMPLE_COMPOUND || desiredShapeType == SHAPE_TYPE_STATIC_MESH);
+    const bool copyMeshIndices = (desiredShapeType == SHAPE_TYPE_STATIC_MESH); // Index offset will be applied if needed
+    const bool generateIndicesFromVertices = (desiredShapeType == SHAPE_TYPE_SIMPLE_COMPOUND); // TODO: Do not require indices for SHAPE_TYPE_SIMPLE_COMPOUND, and have a more compact way of distinguishing mesh parts in ShapeInfo.
     const bool hasIndices = copyMeshIndices || generateIndicesFromVertices;
     
     uint32_t pointListCount = 1;
@@ -437,9 +438,16 @@ void computeShapeInfoForModel(ShapeInfo& shapeInfo, const ShapeType& desiredShap
 
     uint32_t numHFMShapes = (uint32_t)hfmModel.shapes.size();
     uint32_t lastMesh = hfm::UNDEFINED_KEY;
-    uint32_t lastMeshPart = hfm::UNDEFINED_KEY;
-    for (uint32_t s = 0; s < numHFMShapes; ++s) {
-        const HFMShape& shape = hfmModel.shapes[s];
+    uint32_t meshIndexOffset = 0;
+    for (uint32_t s = 0; s != numHFMShapes; ++s) {
+        const hfm::Shape& shape = hfmModel.shapes[s];
+        const auto& mesh = hfmModel.meshes[shape.mesh];
+        const auto& triangleListMesh = mesh.triangleListMesh;
+        const auto& part = triangleListMesh.parts[shape.meshPart];
+        int partStart = part.x;
+        int partSize = part.y;
+        int partEnd = partStart + partSize;
+
         glm::mat4 localTransform = getLocalTransformForShape(shape, hfmModel, shapeInfoPreTransform, rigJointTransforms);
 
         if (hasPointListPerShape) {
@@ -447,12 +455,60 @@ void computeShapeInfoForModel(ShapeInfo& shapeInfo, const ShapeType& desiredShap
         }
         ShapeInfo::PointList& pointList = pointCollection.back();
 
+        if (copyVerticesUsingInputIndices) {
+            meshIndexOffset = (uint32_t)pointList.size();
+            pointCollection.reserve(pointCollection.size() + partSize);
+            for (int i = partStart; i < partEnd; ++i) {
+                const auto index = triangleListMesh.indices[(size_t)i];
+                const glm::vec3 point = triangleListMesh.vertices[index];
+                const glm::vec3 transformedPoint = glm::vec3(localTransform * glm::vec4(point, 1.0f));
+                pointList.push_back(transformedPoint);
+            }
+        } else if (copyInputMeshVertices) {
+            if (shape.mesh != lastMesh) {
+                meshIndexOffset = (uint32_t)pointList.size();
+                pointCollection.reserve(pointCollection.size() + triangleListMesh.vertices.size());
+                for (const auto& point : triangleListMesh.vertices) {
+                    const glm::vec3 transformedPoint = glm::vec3(localTransform * glm::vec4(point, 1.0f));
+                    pointList.push_back(transformedPoint);
+                }
+            }
+        }
+        const uint32_t pointsAddedLast = pointList.size() - meshIndexOffset;
 
+        if (hasIndices) {
+            if (copyMeshIndices) {
+                triangleIndices.reserve(triangleIndices.size() + partSize);
+                for (int i = partStart; i < partEnd; ++i) {
+                    const auto index = triangleListMesh.indices[(size_t)i];
+                    triangleIndices.push_back(index + meshIndexOffset);
+                }
+            } else if (generateIndicesFromVertices) {
+                size_t triangleIndexStart = triangleIndices.size();
+                triangleIndices.resize(triangleIndexStart + pointsAddedLast);
+                auto indexGenBegin = triangleIndices.begin() + triangleIndexStart;
+                auto indexGenEnd = indexGenBegin + pointsAddedLast;
+                std::iota(indexGenBegin, indexGenEnd, meshIndexOffset);
+            }
+
+            if (hasPointListPerShape) {
+                if (s + 1 != numHFMShapes) {
+                    const hfm::Shape& nextShape = hfmModel.shapes[s + 1];
+                    if (nextShape.mesh != shape.mesh) {
+                        triangleIndices.push_back(END_OF_MESH_PART);
+                        triangleIndices.push_back(END_OF_MESH);
+                    } else if (nextShape.meshPart != shape.meshPart) {
+                        triangleIndices.push_back(END_OF_MESH_PART);
+                    }
+                } else {
+                    triangleIndices.push_back(END_OF_MESH_PART);
+                    triangleIndices.push_back(END_OF_MESH);
+                }
+            }
+        }
+
+        lastMesh = shape.mesh;
     }
-    
-    
-
-
 }
 
 void RenderableModelEntityItem::computeShapeInfo(ShapeInfo& shapeInfo) {
@@ -473,27 +529,45 @@ void RenderableModelEntityItem::computeShapeInfo(ShapeInfo& shapeInfo) {
         return;
     }
 
-    // TODO: Point to the real model
-    hfm::Model hfmModel;
-    // TODO: Point to the real dimensions
-    glm::vec3 dimensions;
+    if (type == SHAPE_TYPE_COMPOUND) {
+        if (!_collisionGeometryResource || !_collisionGeometryResource->isLoaded()) {
+            return;
+        }
+    }
+
+    updateModelBounds();
+    if (type != SHAPE_TYPE_COMPOUND) {
+        model->updateGeometry();
+    }
+
+    const QString modelURL = (type == SHAPE_TYPE_COMPOUND) ? getCompoundShapeURL() : getModelURL();
+    const hfm::Model& hfmModel = (type == SHAPE_TYPE_COMPOUND) ? _collisionGeometryResource->getHFMModel() : model->getHFMModel();
+    const glm::vec3 dimensions = getScaledDimensions();
+    std::vector<glm::mat4> rigJointTransforms;
+    {
+        const auto& rig = model->getRig();
+        for (uint32_t jointIndex = 0; jointIndex < hfmModel.joints.size(); ++jointIndex) {
+            rigJointTransforms.push_back(rig.getJointTransform(jointIndex));
+        }
+    }
 
     // scale and shift
-    glm::vec3 extentsSize = hfmModel.meshExtents.size();
+    const glm::vec3 extentsSize = hfmModel.meshExtents.size();
     glm::vec3 scaleToFit = dimensions / extentsSize;
     for (int32_t i = 0; i < 3; ++i) {
         if (extentsSize[i] < 1.0e-6f) {
             scaleToFit[i] = 1.0f;
         }
     }
-    glm::mat4 scaleToFitTransform = glm::scale(scaleToFit);
-    glm::mat4 invRegistrationOffset = glm::translate(dimensions * (getRegistrationPoint() - ENTITY_ITEM_DEFAULT_REGISTRATION_POINT));
-    glm::mat4 shapeInfoPreTransform = scaleToFitTransform * invRegistrationOffset;
+    const glm::mat4 scaleToFitTransform = glm::scale(scaleToFit);
+    const glm::mat4 invRegistrationOffset = glm::translate(dimensions * (getRegistrationPoint() - ENTITY_ITEM_DEFAULT_REGISTRATION_POINT));
+    const glm::mat4 shapeInfoPreTransform = scaleToFitTransform * invRegistrationOffset;
 
     // The collision will default to a box if the geometry is too complicated
     shapeInfo.setParams(SHAPE_TYPE_BOX, 0.5f * dimensions);
-    // TODO: computeShapeInfoForModel
-    // TODO: Other stuff
+
+    // Now, copy the mesh information into the shapeInfo
+    computeShapeInfoForModel(shapeInfo, hfmModel, modelURL, shapeInfoPreTransform, rigJointTransforms);
 
     if (shapeInfo.getType() != SHAPE_TYPE_BOX) {
         if (type == SHAPE_TYPE_COMPOUND) {
@@ -502,314 +576,6 @@ void RenderableModelEntityItem::computeShapeInfo(ShapeInfo& shapeInfo) {
             shapeInfo.setParams(type, 0.5f * dimensions, getModelURL());
         }
         adjustShapeInfoByRegistration(shapeInfo);
-    }
-
-
-
-    uint32_t TRIANGLE_STRIDE = 3;
-
-    if (type == SHAPE_TYPE_COMPOUND) {
-        if (!_collisionGeometryResource || !_collisionGeometryResource->isLoaded()) {
-            return;
-        }
-
-        updateModelBounds();
-
-        // should never fall in here when collision model not fully loaded
-        // TODO: assert that all geometries exist and are loaded
-        //assert(_model && _model->isLoaded() && _collisionGeometryResource && _collisionGeometryResource->isLoaded());
-        const HFMModel& collisionGeometry = _collisionGeometryResource->getHFMModel();
-
-        ShapeInfo::PointCollection& pointCollection = shapeInfo.getPointCollection();
-        pointCollection.clear();
-
-        size_t numParts = 0;
-        for (const HFMMesh& mesh : collisionGeometry.meshes) {
-            numParts += mesh.triangleListMesh.parts.size();
-        }
-        pointCollection.reserve(numParts);
-
-        // the way OBJ files get read, each section under a "g" line is its own meshPart.  We only expect
-        // to find one actual "mesh" (with one or more meshParts in it), but we loop over the meshes, just in case.
-        for (const HFMMesh& mesh : collisionGeometry.meshes) {
-            const hfm::TriangleListMesh& triangleListMesh = mesh.triangleListMesh;
-            // each meshPart is a convex hull
-            for (const glm::ivec2& part : triangleListMesh.parts) {
-                // run through all the triangles and (uniquely) add each point to the hull
-
-                pointCollection.emplace_back();
-                ShapeInfo::PointList& pointsInPart = pointCollection.back();
-
-                uint32_t numIndices = (uint32_t)part.y;
-                // TODO: assert rather than workaround after we start sanitizing HFMMesh higher up
-                //assert(numIndices % TRIANGLE_STRIDE == 0);
-                numIndices -= numIndices % TRIANGLE_STRIDE; // WORKAROUND lack of sanity checking in FBXSerializer
-                uint32_t indexStart = (uint32_t)part.x;
-                uint32_t indexEnd = indexStart + numIndices;
-                for (uint32_t j = indexStart; j < indexEnd; j += TRIANGLE_STRIDE) {
-                    // NOTE: It seems odd to skip vertices when initializing a btConvexHullShape, but let's keep the behavior similar to the old behavior for now
-                    glm::vec3 p0 = triangleListMesh.vertices[triangleListMesh.indices[j]];
-                    glm::vec3 p1 = triangleListMesh.vertices[triangleListMesh.indices[j + 1]];
-                    glm::vec3 p2 = triangleListMesh.vertices[triangleListMesh.indices[j + 2]];
-                    if (std::find(pointsInPart.cbegin(), pointsInPart.cend(), p0) == pointsInPart.cend()) {
-                        pointsInPart.push_back(p0);
-                    }
-                    if (std::find(pointsInPart.cbegin(), pointsInPart.cend(), p1) == pointsInPart.cend()) {
-                        pointsInPart.push_back(p1);
-                    }
-                    if (std::find(pointsInPart.cbegin(), pointsInPart.cend(), p2) == pointsInPart.cend()) {
-                        pointsInPart.push_back(p2);
-                    }
-                }
-
-                if (pointsInPart.size() == 0) {
-                    qCDebug(entitiesrenderer) << "Warning -- meshPart has no faces";
-                    pointCollection.pop_back();
-                    continue;
-                }
-            }
-        }
-
-        // We expect that the collision model will have the same units and will be displaced
-        // from its origin in the same way the visual model is.  The visual model has
-        // been centered and probably scaled.  We take the scaling and offset which were applied
-        // to the visual model and apply them to the collision model (without regard for the
-        // collision model's extents).
-
-        glm::vec3 dimensions = getScaledDimensions();
-        glm::vec3 scaleToFit = dimensions / model->getHFMModel().getUnscaledMeshExtents().size();
-        // multiply each point by scale before handing the point-set off to the physics engine.
-        // also determine the extents of the collision model.
-        glm::vec3 registrationOffset = dimensions * (ENTITY_ITEM_DEFAULT_REGISTRATION_POINT - getRegistrationPoint());
-        for (int32_t i = 0; i < pointCollection.size(); i++) {
-            for (int32_t j = 0; j < pointCollection[i].size(); j++) {
-                // back compensate for registration so we can apply that offset to the shapeInfo later
-                pointCollection[i][j] = scaleToFit * (pointCollection[i][j] + model->getOffset()) - registrationOffset;
-            }
-        }
-        shapeInfo.setParams(type, dimensions, getCompoundShapeURL());
-        adjustShapeInfoByRegistration(shapeInfo);
-    } else if (type >= SHAPE_TYPE_SIMPLE_HULL && type <= SHAPE_TYPE_STATIC_MESH) {
-        updateModelBounds();
-        // assert we never fall in here when model not fully loaded
-        assert(model && model->isLoaded());
-        model->updateGeometry();
-
-        // compute meshPart local transforms
-        QVector<glm::mat4> localTransforms;
-        const HFMModel& hfmModel = model->getHFMModel();
-        uint32_t numHFMShapes = (uint32_t)hfmModel.shapes.size();
-        localTransforms.reserve(numHFMShapes);
-        glm::vec3 dimensions = getScaledDimensions();
-        glm::mat4 invRegistraionOffset = glm::translate(dimensions * (getRegistrationPoint() - ENTITY_ITEM_DEFAULT_REGISTRATION_POINT));
-        for (uint32_t s = 0; s < numHFMShapes; s++) {
-            const HFMShape& shape = hfmModel.shapes[s];
-            if (shape.joint != hfm::UNDEFINED_KEY) {
-                auto jointMatrix = model->getRig().getJointTransform(shape.joint);
-                // we backtranslate by the registration offset so we can apply that offset to the shapeInfo later
-                if (shape.skinDeformer != hfm::UNDEFINED_KEY) {
-                    const auto& skinDeformer = hfmModel.skinDeformers[shape.skinDeformer];
-                    glm::mat4 inverseBindMatrix;
-                    if (!skinDeformer.clusters.empty()) {
-                        const auto& cluster = skinDeformer.clusters.back();
-                        inverseBindMatrix = cluster.inverseBindMatrix;
-                    }
-                    localTransforms.push_back(invRegistraionOffset * jointMatrix * inverseBindMatrix);
-                } else {
-                    localTransforms.push_back(invRegistraionOffset * jointMatrix);
-                }
-            } else {
-                localTransforms.push_back(invRegistraionOffset);
-            }
-        }
-
-        ShapeInfo::TriangleIndices& triangleIndices = shapeInfo.getTriangleIndices();
-        triangleIndices.clear();
-
-        int32_t shapeCount = 0;
-        int32_t instanceIndex = 0;
-
-        // NOTE: Each pointCollection corresponds to a mesh. Therefore, we should have one pointCollection per mesh instance
-        // A mesh instance is a unique combination of mesh/transform. For every mesh instance, there are as many shapes as there are parts for that mesh.
-        // We assume the shapes are grouped by mesh instance, and the group contains one of each mesh part.
-        uint32_t numInstances = 0;
-        std::vector<std::vector<std::vector<uint32_t>>> shapesPerInstancePerMesh;
-        shapesPerInstancePerMesh.resize(hfmModel.meshes.size());
-        for (uint32_t shapeIndex = 0; shapeIndex < hfmModel.shapes.size();) {
-            const auto& shape = hfmModel.shapes[shapeIndex];
-            uint32_t meshIndex = shape.mesh;
-            const auto& mesh = hfmModel.meshes[meshIndex];
-            uint32_t numMeshParts = (uint32_t)mesh.parts.size();
-            assert(numMeshParts != 0);
-
-            auto& shapesPerInstance = shapesPerInstancePerMesh[meshIndex];
-            shapesPerInstance.emplace_back();
-
-            auto& shapes = shapesPerInstance.back();
-            shapes.resize(numMeshParts);
-            std::iota(shapes.begin(), shapes.end(), shapeIndex);
-
-            shapeIndex += numMeshParts;
-            ++numInstances;
-        }
-
-        const uint32_t MAX_ALLOWED_MESH_COUNT = 1000;
-        if (numInstances > MAX_ALLOWED_MESH_COUNT) {
-            // too many will cause the deadlock timer to throw...
-            qWarning() << "model" << getModelURL() << "has too many collision meshes" << numInstances << "and will collide as a box.";
-            shapeInfo.setParams(SHAPE_TYPE_BOX, 0.5f * dimensions);
-            return;
-        }
-
-        size_t totalNumVertices = 0;
-        for (const auto& shapesPerInstance : shapesPerInstancePerMesh) {
-            for (const auto& instanceShapes : shapesPerInstance) {
-                const uint32_t firstShapeIndex = instanceShapes.front();
-                const auto& firstShape = hfmModel.shapes[firstShapeIndex];
-                const auto& mesh = hfmModel.meshes[firstShape.mesh];
-                const auto& triangleListMesh = mesh.triangleListMesh;
-                // Added once per instance per mesh
-                totalNumVertices += triangleListMesh.vertices.size();
-            }
-        }
-        const size_t MAX_VERTICES_PER_STATIC_MESH = 1e6;
-        if (totalNumVertices > MAX_VERTICES_PER_STATIC_MESH) {
-            qWarning() << "model" << getModelURL() << "has too many vertices" << totalNumVertices << "and will collide as a box.";
-            shapeInfo.setParams(SHAPE_TYPE_BOX, 0.5f * dimensions);
-            return;
-        }
-
-        ShapeInfo::PointCollection& pointCollection = shapeInfo.getPointCollection();
-        pointCollection.clear();
-        if (type == SHAPE_TYPE_SIMPLE_COMPOUND) {
-            pointCollection.resize(numInstances);
-        } else {
-            pointCollection.resize(1);
-        }
-
-        for (uint32_t meshIndex = 0; meshIndex < hfmModel.meshes.size(); ++meshIndex) {
-            const auto& mesh = hfmModel.meshes[meshIndex];
-            const auto& triangleListMesh = mesh.triangleListMesh;
-            const auto& vertices = triangleListMesh.vertices;
-            const auto& indices = triangleListMesh.indices;
-            const std::vector<glm::ivec2>& parts = triangleListMesh.parts;
-
-            const auto& shapesPerInstance = shapesPerInstancePerMesh[meshIndex];
-            for (const std::vector<uint32_t>& instanceShapes : shapesPerInstance) {
-                ShapeInfo::PointList& points = pointCollection[instanceIndex];
-
-                // reserve room
-                int32_t sizeToReserve = (int32_t)(vertices.size());
-                if (type == SHAPE_TYPE_SIMPLE_COMPOUND) {
-                    // a list of points for each instance
-                    instanceIndex++;
-                } else {
-                    // only one list of points
-                    sizeToReserve += (int32_t)((gpu::Size)points.size());
-                }
-                points.reserve(sizeToReserve);
-                
-                // get mesh instance transform
-                const uint32_t meshIndexOffset = (uint32_t)points.size();
-                const uint32_t instanceShapeIndexForTransform = instanceShapes.front();
-                const auto& instanceShapeForTransform = hfmModel.shapes[instanceShapeIndexForTransform];
-                glm::mat4 localTransform;
-                if (instanceShapeForTransform.joint != hfm::UNDEFINED_KEY) {
-                    auto jointMatrix = model->getRig().getJointTransform(instanceShapeForTransform.joint);
-                    // we backtranslate by the registration offset so we can apply that offset to the shapeInfo later
-                    if (instanceShapeForTransform.skinDeformer != hfm::UNDEFINED_KEY) {
-                        const auto& skinDeformer = hfmModel.skinDeformers[instanceShapeForTransform.skinDeformer];
-                        glm::mat4 inverseBindMatrix;
-                        if (!skinDeformer.clusters.empty()) {
-                            const auto& cluster = skinDeformer.clusters.back();
-                            inverseBindMatrix = cluster.inverseBindMatrix;
-                        }
-                        localTransform = invRegistraionOffset * jointMatrix * inverseBindMatrix;
-                    } else {
-                        localTransform = invRegistraionOffset * jointMatrix;
-                    }
-                } else {
-                    localTransform = invRegistraionOffset;
-                }
-
-                // copy points
-                auto vertexItr = vertices.cbegin();
-                while (vertexItr != vertices.cend()) {
-                    glm::vec3 point = extractTranslation(localTransform * glm::translate(*vertexItr));
-                    points.push_back(point);
-                    ++vertexItr;
-                }
-
-                if (type == SHAPE_TYPE_STATIC_MESH) {
-                    // copy into triangleIndices
-                    triangleIndices.reserve((int32_t)((gpu::Size)(triangleIndices.size()) + indices.size()));
-                    auto partItr = parts.cbegin();
-                    while (partItr != parts.cend()) {
-                        auto numIndices = partItr->y;
-                        // TODO: assert rather than workaround after we start sanitizing HFMMesh higher up
-                        //assert(numIndices % TRIANGLE_STRIDE == 0);
-                        numIndices -= numIndices % TRIANGLE_STRIDE; // WORKAROUND lack of sanity checking in FBXSerializer
-                        auto indexItr = indices.cbegin() + partItr->x;
-                        auto indexEnd = indexItr + numIndices;
-                        while (indexItr != indexEnd) {
-                            triangleIndices.push_back(*indexItr + meshIndexOffset);
-                            ++indexItr;
-                        }
-                        ++partItr;
-                    }
-                } else if (type == SHAPE_TYPE_SIMPLE_COMPOUND) {
-                    // for each mesh copy unique part indices, separated by special bogus (flag) index values
-                    auto partItr = parts.cbegin();
-                    while (partItr != parts.cend()) {
-                        // collect unique list of indices for this part
-                        std::set<int32_t> uniqueIndices;
-                        auto numIndices = partItr->y;
-                        // TODO: assert rather than workaround after we start sanitizing HFMMesh higher up
-                        //assert(numIndices% TRIANGLE_STRIDE == 0);
-                        numIndices -= numIndices % TRIANGLE_STRIDE; // WORKAROUND lack of sanity checking in FBXSerializer
-                        auto indexItr = indices.cbegin() + partItr->x;
-                        auto indexEnd = indexItr + numIndices;
-                        while (indexItr != indexEnd) {
-                            uniqueIndices.insert(*indexItr);
-                            ++indexItr;
-                        }
-
-                        // store uniqueIndices in triangleIndices
-                        triangleIndices.reserve(triangleIndices.size() + (int32_t)uniqueIndices.size());
-                        for (auto index : uniqueIndices) {
-                            triangleIndices.push_back(index);
-                        }
-                        // flag end of part
-                        triangleIndices.push_back(END_OF_MESH_PART);
-
-                        ++partItr;
-                    }
-                    // flag end of mesh
-                    triangleIndices.push_back(END_OF_MESH);
-                }
-            }
-
-            ++shapeCount;
-        }
-
-        // scale and shift
-        glm::vec3 extentsSize = hfmModel.meshExtents.size();
-        glm::vec3 scaleToFit = dimensions / extentsSize;
-        for (int32_t i = 0; i < 3; ++i) {
-            if (extentsSize[i] < 1.0e-6f) {
-                scaleToFit[i] = 1.0f;
-            }
-        }
-        for (auto points : pointCollection) {
-            for (int32_t i = 0; i < points.size(); ++i) {
-                points[i] = (points[i] * scaleToFit);
-            }
-        }
-
-        shapeInfo.setParams(type, 0.5f * dimensions, getModelURL());
-        adjustShapeInfoByRegistration(shapeInfo);
-    } else {
-        EntityItem::computeShapeInfo(shapeInfo);
     }
 }
 
