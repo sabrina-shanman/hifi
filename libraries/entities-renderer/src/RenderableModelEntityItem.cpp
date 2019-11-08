@@ -358,7 +358,13 @@ bool RenderableModelEntityItem::isReadyToComputeShape() const {
 glm::mat4 getLocalTransformForShape(const hfm::Shape& shape, const hfm::Model& hfmModel, const glm::mat4& shapeInfoPreTransform, const std::vector<glm::mat4>& rigJointTransforms) {
     qDebug(entitiesrenderer) << "    shapeInfoPreTransform " << shapeInfoPreTransform[0][0] << shapeInfoPreTransform[0][1] << shapeInfoPreTransform[0][2] << shapeInfoPreTransform[0][3] << shapeInfoPreTransform[1][0] << shapeInfoPreTransform[1][1] << shapeInfoPreTransform[1][2] << shapeInfoPreTransform[1][3] << shapeInfoPreTransform[2][0] << shapeInfoPreTransform[2][1] << shapeInfoPreTransform[2][2] << shapeInfoPreTransform[2][3] << shapeInfoPreTransform[3][0] << shapeInfoPreTransform[3][1] << shapeInfoPreTransform[3][2] << shapeInfoPreTransform[3][3]; // TODO: Remove after testing
     if (shape.joint != hfm::UNDEFINED_KEY) {
-        auto rigJointTransform = rigJointTransforms[shape.joint];
+        glm::mat4 rigJointTransform;
+        if (!rigJointTransforms.empty()) {
+            rigJointTransform = rigJointTransforms[shape.joint];
+        } else {
+            // No Rig, so just use the static transform
+            rigJointTransform = hfmModel.joints[shape.joint].transform;
+        }
         qDebug(entitiesrenderer) << "    rigJointTransform " << rigJointTransform[0][0] << rigJointTransform[0][1] << rigJointTransform[0][2] << rigJointTransform[0][3] << rigJointTransform[1][0] << rigJointTransform[1][1] << rigJointTransform[1][2] << rigJointTransform[1][3] << rigJointTransform[2][0] << rigJointTransform[2][1] << rigJointTransform[2][2] << rigJointTransform[2][3] << rigJointTransform[3][0] << rigJointTransform[3][1] << rigJointTransform[3][2] << rigJointTransform[3][3]; // TODO: Remove after testing
         if (shape.skinDeformer != hfm::UNDEFINED_KEY) {
             const auto& skinDeformer = hfmModel.skinDeformers[shape.skinDeformer];
@@ -394,30 +400,8 @@ void computeShapeInfoForModel(ShapeInfo& shapeInfo, const hfm::Model& hfmModel, 
     const bool generateIndicesFromVertices = (shapeType == SHAPE_TYPE_SIMPLE_COMPOUND); // TODO: Do not require indices for SHAPE_TYPE_SIMPLE_COMPOUND, and have a more compact way of distinguishing mesh parts in ShapeInfo.
     const bool hasIndices = copyMeshIndices || generateIndicesFromVertices;
     
-    uint32_t pointListCount = 1;
-    if (hasPointListPerShape) {
-        uint32_t collisionMeshCount = 0;
-        uint32_t lastMesh = hfm::UNDEFINED_KEY;
-        for (const auto& shape : hfmModel.shapes) {
-            if (shape.mesh != lastMesh) {
-                lastMesh = shape.mesh;
-                ++collisionMeshCount;
-            }
-        }
-
-        const uint32_t MAX_ALLOWED_MESH_COUNT = 1000;
-        if (collisionMeshCount > MAX_ALLOWED_MESH_COUNT) {
-            // too many will cause the deadlock timer to throw...
-            qWarning() << "model" << modelURL << "has too many collision meshes" << collisionMeshCount << "and will collide as a box.";
-            shapeInfo.setParams(SHAPE_TYPE_BOX, shapeInfo.getHalfExtents());
-            return;
-        }
-
-        pointListCount = collisionMeshCount;
-    }
-    
+    size_t vertexCount = 0;
     {
-        size_t vertexCount = 0;
         uint32_t lastMesh = hfm::UNDEFINED_KEY;
         for (const auto& shape : hfmModel.shapes) {
             if (shape.mesh != lastMesh) {
@@ -428,17 +412,13 @@ void computeShapeInfoForModel(ShapeInfo& shapeInfo, const hfm::Model& hfmModel, 
                 vertexCount += triangleListMesh.vertices.size();
             }
         }
-        const size_t MAX_VERTICES_PER_STATIC_MESH = 1e6;
-        if (vertexCount > MAX_VERTICES_PER_STATIC_MESH) {
-            qWarning() << "model" << modelURL << "has too many vertices" << vertexCount << "and will collide as a box.";
-            shapeInfo.setParams(SHAPE_TYPE_BOX, shapeInfo.getHalfExtents());
-            return;
-        }
     }
 
-    pointCollection.reserve(pointListCount);
-    if (!hasPointListPerShape && !hasPointListPerMesh) {
-        pointCollection.emplace_back();
+    const size_t MAX_VERTICES_PER_STATIC_MESH = 1e6;
+    if (vertexCount > MAX_VERTICES_PER_STATIC_MESH) {
+        qWarning() << "model" << modelURL << "has too many vertices" << vertexCount << "and will collide as a box.";
+        shapeInfo.setParams(SHAPE_TYPE_BOX, shapeInfo.getHalfExtents());
+        return;
     }
 
     uint32_t numHFMShapes = (uint32_t)hfmModel.shapes.size();
@@ -467,12 +447,10 @@ void computeShapeInfoForModel(ShapeInfo& shapeInfo, const hfm::Model& hfmModel, 
         glm::mat4 localTransform = getLocalTransformForShape(shape, hfmModel, shapeInfoPreTransform, rigJointTransforms);
         qDebug(entitiesrenderer) << "    transform " << localTransform[0][0] << localTransform[0][1] << localTransform[0][2] << localTransform[0][3] << localTransform[1][0] << localTransform[1][1] << localTransform[1][2] << localTransform[1][3] << localTransform[2][0] << localTransform[2][1] << localTransform[2][2] << localTransform[2][3] << localTransform[3][0] << localTransform[3][1] << localTransform[3][2] << localTransform[3][3]; // TODO: Remove after testing
 
-        if (hasPointListPerShape) {
+        if (hasPointListPerShape ||
+            (hasPointListPerMesh && shape.mesh != lastMesh) ||
+            s == 0) {
             pointCollection.emplace_back();
-        } else if (hasPointListPerMesh) {
-            if (shape.mesh != lastMesh) {
-                pointCollection.emplace_back();
-            }
         }
         ShapeInfo::PointList& pointList = pointCollection.back();
 
@@ -580,7 +558,7 @@ void RenderableModelEntityItem::computeShapeInfo(ShapeInfo& shapeInfo) {
     const hfm::Model& hfmModel = (type == SHAPE_TYPE_COMPOUND) ? _collisionGeometryResource->getHFMModel() : model->getHFMModel();
     const glm::vec3 dimensions = getScaledDimensions();
     std::vector<glm::mat4> rigJointTransforms;
-    {
+    if (type != SHAPE_TYPE_COMPOUND) {
         const auto& rig = model->getRig();
         for (uint32_t jointIndex = 0; jointIndex < hfmModel.joints.size(); ++jointIndex) {
             rigJointTransforms.push_back(rig.getJointTransform(jointIndex));
@@ -600,16 +578,14 @@ void RenderableModelEntityItem::computeShapeInfo(ShapeInfo& shapeInfo) {
     const glm::mat4 shapeInfoPreTransform = scaleToFitTransform * invRegistrationOffset;
 
     // Set the shape type and default half extents. The collision will revert to a box with these dimensions if the geometry is too complicated
-    shapeInfo.setParams(type, 0.5f * dimensions);
+    shapeInfo.setParams(type, 0.5f * dimensions, modelURL);
 
     // Now, initialize the shapeInfo for the model case, either copying points/indices depending on what ShapeFactory wants, or reverting to a box if there is too much to copy.
     computeShapeInfoForModel(shapeInfo, hfmModel, modelURL, shapeInfoPreTransform, rigJointTransforms);
 
     if (shapeInfo.getType() != SHAPE_TYPE_BOX) {
         if (type == SHAPE_TYPE_COMPOUND) {
-            shapeInfo.setParams(type, dimensions, getCompoundShapeURL());
-        } else {
-            shapeInfo.setParams(type, 0.5f * dimensions, getModelURL());
+            shapeInfo.setParams(type, dimensions, modelURL);
         }
         adjustShapeInfoByRegistration(shapeInfo);
     }
