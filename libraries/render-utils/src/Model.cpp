@@ -389,9 +389,7 @@ bool Model::findRayIntersectionAgainstSubMeshes(const glm::vec3& origin, const g
         Triangle bestWorldTriangle;
         glm::vec3 bestWorldIntersectionPoint;
         glm::vec3 bestMeshIntersectionPoint;
-        int bestPartIndex = 0;
-        int bestShapeID = 0;
-        int bestSubMeshIndex = 0;
+        uint32_t bestShapeIndex = 0;
 
         const HFMModel& hfmModel = getHFMModel();
         if (!_triangleSetsValid) {
@@ -406,12 +404,8 @@ bool Model::findRayIntersectionAgainstSubMeshes(const glm::vec3& origin, const g
         glm::vec3 meshFrameDirection = glm::vec3(worldToMeshMatrix * glm::vec4(direction, 0.0f));
         glm::vec3 meshFrameInvDirection = 1.0f / meshFrameDirection;
 
-        int shapeID = 0;
-        int subMeshIndex = 0;
-
         std::vector<SortedTriangleSet> sortedTriangleSets;
         for (auto& meshTriangleSets : _modelSpaceMeshTriangleSets) {
-            int partIndex = 0;
             for (auto& partTriangleSet : meshTriangleSets) {
                 float priority = FLT_MAX;
                 if (partTriangleSet.getBounds().contains(meshFrameOrigin)) {
@@ -427,12 +421,9 @@ bool Model::findRayIntersectionAgainstSubMeshes(const glm::vec3& origin, const g
                 }
 
                 if (priority < FLT_MAX) {
-                    sortedTriangleSets.emplace_back(priority, &partTriangleSet, partIndex, shapeID, subMeshIndex);
+                    sortedTriangleSets.emplace_back(priority, &partTriangleSet, partTriangleSet.getShapeIndex());
                 }
-                partIndex++;
-                shapeID++;
             }
-            subMeshIndex++;
         }
 
         if (sortedTriangleSets.size() > 1) {
@@ -461,9 +452,7 @@ bool Model::findRayIntersectionAgainstSubMeshes(const glm::vec3& origin, const g
                     glm::vec3 worldIntersectionPoint = glm::vec3(meshToWorldMatrix * glm::vec4(meshIntersectionPoint, 1.0f));
                     bestWorldIntersectionPoint = worldIntersectionPoint;
                     bestMeshIntersectionPoint = meshIntersectionPoint;
-                    bestPartIndex = sortedTriangleSet.partIndex;
-                    bestShapeID = sortedTriangleSet.shapeID;
-                    bestSubMeshIndex = sortedTriangleSet.subMeshIndex;
+                    bestShapeIndex = sortedTriangleSet.shapeIndex;
                 }
             }
         }
@@ -487,11 +476,13 @@ bool Model::findRayIntersectionAgainstSubMeshes(const glm::vec3& origin, const g
             surfaceNormal = bestWorldTriangle.getNormal();
             extraInfo["worldIntersectionPoint"] = vec3toVariant(bestWorldIntersectionPoint);
             extraInfo["meshIntersectionPoint"] = vec3toVariant(bestMeshIntersectionPoint);
-            extraInfo["partIndex"] = bestPartIndex;
-            extraInfo["shapeID"] = bestShapeID;
+            extraInfo["shapeID"] = bestShapeIndex;
+            const hfm::Shape& shape = hfmModel.shapes[bestShapeIndex];
+            extraInfo["subMeshIndex"] = shape.mesh;
+            extraInfo["partIndex"] = shape.meshPart;
+            extraInfo["subMeshName"] = hfmModel.getModelNameOfMesh(shape.mesh);
+            extraInfo["jointIndex"] = shape.joint == hfm::UNDEFINED_KEY ? (int)-1 : (int)shape.joint;
             if (pickAgainstTriangles) {
-                extraInfo["subMeshIndex"] = bestSubMeshIndex;
-                extraInfo["subMeshName"] = hfmModel.getModelNameOfMesh(bestSubMeshIndex);
                 extraInfo["subMeshTriangleWorld"] = QVariantMap{
                     { "v0", vec3toVariant(bestWorldTriangle.v0) },
                     { "v1", vec3toVariant(bestWorldTriangle.v1) },
@@ -545,9 +536,7 @@ bool Model::findParabolaIntersectionAgainstSubMeshes(const glm::vec3& origin, co
         Triangle bestWorldTriangle;
         glm::vec3 bestWorldIntersectionPoint;
         glm::vec3 bestMeshIntersectionPoint;
-        int bestPartIndex = 0;
-        int bestShapeID = 0;
-        int bestSubMeshIndex = 0;
+        int bestShapeIndex = 0;
 
         const HFMModel& hfmModel = getHFMModel();
         if (!_triangleSetsValid) {
@@ -561,9 +550,6 @@ bool Model::findParabolaIntersectionAgainstSubMeshes(const glm::vec3& origin, co
         glm::vec3 meshFrameOrigin = glm::vec3(worldToMeshMatrix * glm::vec4(origin, 1.0f));
         glm::vec3 meshFrameVelocity = glm::vec3(worldToMeshMatrix * glm::vec4(velocity, 0.0f));
         glm::vec3 meshFrameAcceleration = glm::vec3(worldToMeshMatrix * glm::vec4(acceleration, 0.0f));
-
-        int shapeID = 0;
-        int subMeshIndex = 0;
 
         std::vector<SortedTriangleSet> sortedTriangleSets;
         for (auto& meshTriangleSets : _modelSpaceMeshTriangleSets) {
@@ -583,12 +569,9 @@ bool Model::findParabolaIntersectionAgainstSubMeshes(const glm::vec3& origin, co
                 }
 
                 if (priority < FLT_MAX) {
-                    sortedTriangleSets.emplace_back(priority, &partTriangleSet, partIndex, shapeID, subMeshIndex);
+                    sortedTriangleSets.emplace_back(priority, &partTriangleSet, partTriangleSet.getShapeIndex());
                 }
-                partIndex++;
-                shapeID++;
             }
-            subMeshIndex++;
         }
 
         if (sortedTriangleSets.size() > 1) {
@@ -620,9 +603,7 @@ bool Model::findParabolaIntersectionAgainstSubMeshes(const glm::vec3& origin, co
                         0.5f * acceleration * triangleSetDistance * triangleSetDistance;
                     bestWorldIntersectionPoint = worldIntersectionPoint;
                     bestMeshIntersectionPoint = meshIntersectionPoint;
-                    bestPartIndex = sortedTriangleSet.partIndex;
-                    bestShapeID = sortedTriangleSet.shapeID;
-                    bestSubMeshIndex = sortedTriangleSet.subMeshIndex;
+                    bestShapeIndex = sortedTriangleSet.shapeIndex;
                     // These sets can overlap, so we can't exit early if we find something
                 }
             }
@@ -634,11 +615,13 @@ bool Model::findParabolaIntersectionAgainstSubMeshes(const glm::vec3& origin, co
             surfaceNormal = bestWorldTriangle.getNormal();
             extraInfo["worldIntersectionPoint"] = vec3toVariant(bestWorldIntersectionPoint);
             extraInfo["meshIntersectionPoint"] = vec3toVariant(bestMeshIntersectionPoint);
-            extraInfo["partIndex"] = bestPartIndex;
-            extraInfo["shapeID"] = bestShapeID;
+            extraInfo["shapeID"] = bestShapeIndex;
+            const hfm::Shape& shape = hfmModel.shapes[bestShapeIndex];
+            extraInfo["subMeshIndex"] = shape.mesh;
+            extraInfo["partIndex"] = shape.meshPart;
+            extraInfo["subMeshName"] = hfmModel.getModelNameOfMesh(shape.mesh);
+            extraInfo["jointIndex"] = shape.joint == hfm::UNDEFINED_KEY ? (int)-1 : (int)shape.joint;
             if (pickAgainstTriangles) {
-                extraInfo["subMeshIndex"] = bestSubMeshIndex;
-                extraInfo["subMeshName"] = hfmModel.getModelNameOfMesh(bestSubMeshIndex);
                 extraInfo["subMeshTriangleWorld"] = QVariantMap{
                     { "v0", vec3toVariant(bestWorldTriangle.v0) },
                     { "v1", vec3toVariant(bestWorldTriangle.v1) },
@@ -835,7 +818,8 @@ void Model::calculateTriangleSets(const HFMModel& hfmModel) {
     uint32_t lastMeshForTriangleBuilding = hfm::UNDEFINED_KEY;
     glm::mat4 lastTransformForTriangleBuilding { 0 };
     std::vector<glm::vec3> transformedPoints;
-    for (const auto& shape : hfmModel.shapes) {
+    for (uint32_t shapeIndex = 0; shapeIndex < hfmModel.shapes.size(); ++shapeIndex) {
+        const auto& shape = hfmModel.shapes[shapeIndex];
         const uint32_t meshIndex = shape.mesh;
         const hfm::Mesh& mesh = hfmModel.meshes.at(meshIndex);
         const auto& triangleListMesh = mesh.triangleListMesh;
@@ -865,6 +849,7 @@ void Model::calculateTriangleSets(const HFMModel& hfmModel) {
         auto& meshTriangleSets = _modelSpaceMeshTriangleSets.back();
         meshTriangleSets.emplace_back();
         auto& partTriangleSet = meshTriangleSets.back();
+        partTriangleSet.setShapeIndex(shapeIndex);
 
         const static size_t INDICES_PER_TRIANGLE = 3;
         const size_t triangleCount = (size_t)(part.y) / INDICES_PER_TRIANGLE;

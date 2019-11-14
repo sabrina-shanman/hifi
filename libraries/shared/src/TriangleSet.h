@@ -67,6 +67,9 @@ public:
 
     void debugDump();
 
+    void setShapeIndex(uint32_t shapeIndex) { _shape = shapeIndex; }
+    uint32_t getShapeIndex() const { return _shape; }
+
     void insert(const Triangle& t);
 
     bool findRayIntersection(const glm::vec3& origin, const glm::vec3& direction, const glm::vec3& invDirection,
@@ -91,4 +94,5 @@ protected:
     std::vector<Triangle> _triangles;
     TriangleTreeCell _triangleTree;
     AABox _bounds;
+    uint32_t _shape { (uint32_t)-1 };
 };

@@ -29,7 +29,13 @@ Rectangle {
     function fromScript(message) {
         switch (message.method) {
         case "setObjectInfo":
-            entityIDInfo.text = "Type: " + message.params.type + "\nID: " + message.params.id + "\nMesh Part: " + message.params.meshPart;
+            entityIDInfo.text = "Type: " + message.params.type + "\n" +
+                "ID: " + message.params.id + "\n" +
+                "Shape/Mesh/Part/Joint: " +
+                    message.params.shapeIndex + "/" +
+                    message.params.meshIndex + "/" +
+                    message.params.meshPartIndex + "/" +
+                    message.params.jointIndex;
             break;
         case "setMaterialJSON":
             materialJSONText.text = message.params.materialJSONText;
@@ -53,7 +59,7 @@ Rectangle {
             color: Qt.rgba(root.color.r * 0.7, root.color.g * 0.7, root.color.b * 0.7, 0.8);
             TextEdit {
                 id: entityIDInfo
-                text: "Type: Unknown\nID: None\nMesh Part: Unknown"
+                text: "Type: Unknown\nID: None\nShape/Mesh/Part/Joint: Unknown"
                 font.pointSize: 9
                 color: "#FFFFFF"
                 readOnly: true
@@ -232,7 +238,7 @@ Rectangle {
             Original.ScrollBar.horizontal.policy: Original.ScrollBar.AlwaysOff
             TextEdit {
                 id: materialJSONText
-                text: "Click an object to get material JSON"
+                text: "Click an object to get material information"
                 width: root.width
                 font.pointSize: 10
                 color: "#FFFFFF"

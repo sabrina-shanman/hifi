@@ -66,14 +66,12 @@ using ModelPointer = std::shared_ptr<Model>;
 using ModelWeakPointer = std::weak_ptr<Model>;
 
 struct SortedTriangleSet {
-    SortedTriangleSet(float distance, TriangleSet* triangleSet, int partIndex, int shapeID, int subMeshIndex) :
-        distance(distance), triangleSet(triangleSet), partIndex(partIndex), shapeID(shapeID), subMeshIndex(subMeshIndex) {}
+    SortedTriangleSet(float distance, TriangleSet* triangleSet, uint32_t shapeIndex) :
+        distance(distance), triangleSet(triangleSet), shapeIndex(shapeIndex) {}
 
     float distance;
     TriangleSet* triangleSet;
-    int partIndex;
-    int shapeID;
-    int subMeshIndex;
+    uint32_t shapeIndex;
 };
 
 struct BlendshapeOffsetPacked {

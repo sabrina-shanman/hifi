@@ -24,9 +24,9 @@ function getTopMaterial(multiMaterial) {
     return multiMaterial[0];
 }
 
-function updateMaterial(type, id, meshPart) {
+function updateMaterial(type, id, shapeIndex, meshIndex, meshPartIndex, jointIndex) {
     var mesh = Graphics.getModel(id);
-    var meshPartString = meshPart.toString();
+    var meshPartString = meshPartIndex.toString();
     if (!mesh) {
         return;
     }
@@ -41,7 +41,15 @@ function updateMaterial(type, id, meshPart) {
         materials: topMaterial.material
     }, null, 2);
     
-    toQml({method: "setObjectInfo", params: {id: id, type: type, meshPart: meshPart}});
+    toQml({method: "setObjectInfo", params: {
+            id: id,
+            type: type,
+            shapeIndex: shapeIndex,
+            meshIndex: meshIndex,
+            meshPartIndex: meshPartIndex,
+            jointIndex: jointIndex
+        }
+    });
     toQml({method: "setMaterialJSON", params: {materialJSONText: materialJSONText}});
 }
 
@@ -69,10 +77,14 @@ function getHoveredMaterialLocation(event) {
     }
 
     if (closest.intersects) {
+        var hasShape = (closest.extraInfo.shapeID !== undefined);
         return {
             type: type,
             id: id,
-            meshPart: (closest.extraInfo.shapeID ? closest.extraInfo.shapeID : 0)
+            shapeIndex: (hasShape ? closest.extraInfo.shapeID : -1),
+            meshIndex: (hasShape ? closest.extraInfo.subMeshIndex : -1),
+            meshPartIndex: (hasShape ? closest.extraInfo.partIndex : -1),
+            jointIndex: (hasShape ? closest.extraInfo.jointIndex : -1)
         };
     } else {
         return undefined;
@@ -80,7 +92,7 @@ function getHoveredMaterialLocation(event) {
 }
 
 var pressedID;
-var pressedMeshPart;
+var pressedShape;
 
 function mousePressEvent(event) {
     if (!event.isLeftButton) {
@@ -91,7 +103,7 @@ function mousePressEvent(event) {
 
     if (result !== undefined) {
         pressedID = result.id;
-        pressedMeshPart = result.meshPart;
+        pressedShape = result.shapeIndex;
     }
 }
 
@@ -102,8 +114,8 @@ function mouseReleaseEvent(event) {
     
     var result = getHoveredMaterialLocation(event);
     
-    if (result !== undefined && result.id === pressedID && result.meshPart === pressedMeshPart) {
-        updateMaterial(result.type, result.id, result.meshPart);
+    if (result !== undefined && result.id === pressedID && result.shapeIndex === pressedShape) {
+        updateMaterial(result.type, result.id, result.shapeIndex, result.meshIndex, result.meshPartIndex, result.jointIndex);
         setSelectedObject(result.id, result.type);
     }
 }
