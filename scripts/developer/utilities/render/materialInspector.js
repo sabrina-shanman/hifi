@@ -9,7 +9,16 @@
 //
 "use strict";
 
+Script.include("inspector.js");
+
 var activeWindow;
+
+function onInspectShapeMaterial(result) {
+    updateMaterial(result);
+    setInspectedObject(result.id, result.type);
+}
+
+var materialInspector = new Inspector(onInspectShapeMaterial);
 
 // Adapted from Samuel G's material painting script
 function getTopMaterial(multiMaterial) {
@@ -24,9 +33,9 @@ function getTopMaterial(multiMaterial) {
     return multiMaterial[0];
 }
 
-function updateMaterial(type, id, shapeIndex, meshIndex, meshPartIndex, jointIndex) {
-    var mesh = Graphics.getModel(id);
-    var meshPartString = meshPartIndex.toString();
+function updateMaterial(result) {
+    var mesh = Graphics.getModel(result.id);
+    var meshPartString = result.meshPartIndex.toString();
     if (!mesh) {
         return;
     }
@@ -42,82 +51,15 @@ function updateMaterial(type, id, shapeIndex, meshIndex, meshPartIndex, jointInd
     }, null, 2);
     
     toQml({method: "setObjectInfo", params: {
-            id: id,
-            type: type,
-            shapeIndex: shapeIndex,
-            meshIndex: meshIndex,
-            meshPartIndex: meshPartIndex,
-            jointIndex: jointIndex
+            id: result.id,
+            type: result.type,
+            shapeIndex: result.shapeIndex,
+            meshIndex: result.meshIndex,
+            meshPartIndex: result.meshPartIndex,
+            jointIndex: result.jointIndex
         }
     });
     toQml({method: "setMaterialJSON", params: {materialJSONText: materialJSONText}});
-}
-
-// Adapted from Samuel G's material painting script
-function getHoveredMaterialLocation(event) {
-    var pickRay = Camera.computePickRay(event.x, event.y);
-    var closest;
-    var id;
-    var type = "Entity";
-    var avatar = AvatarManager.findRayIntersection(pickRay);
-    var entity = Entities.findRayIntersection(pickRay, true);
-    var overlay = Overlays.findRayIntersection(pickRay, true);
-
-    closest = entity;
-    id = entity.entityID;
-
-    if (avatar.intersects && avatar.distance < closest.distance) {
-        closest = avatar;
-        id = avatar.avatarID;
-        type = "Avatar";
-    } else if (overlay.intersects && overlay.distance < closest.distance) {
-        closest = overlay;
-        id = overlay.overlayID;
-        type = "Overlay";
-    }
-
-    if (closest.intersects) {
-        var hasShape = (closest.extraInfo.shapeID !== undefined);
-        return {
-            type: type,
-            id: id,
-            shapeIndex: (hasShape ? closest.extraInfo.shapeID : -1),
-            meshIndex: (hasShape ? closest.extraInfo.subMeshIndex : -1),
-            meshPartIndex: (hasShape ? closest.extraInfo.partIndex : -1),
-            jointIndex: (hasShape ? closest.extraInfo.jointIndex : -1)
-        };
-    } else {
-        return undefined;
-    }
-}
-
-var pressedID;
-var pressedShape;
-
-function mousePressEvent(event) {
-    if (!event.isLeftButton) {
-        return;
-    }
-    
-    var result = getHoveredMaterialLocation(event);
-
-    if (result !== undefined) {
-        pressedID = result.id;
-        pressedShape = result.shapeIndex;
-    }
-}
-
-function mouseReleaseEvent(event) {
-    if (!event.isLeftButton) {
-        return;
-    }
-    
-    var result = getHoveredMaterialLocation(event);
-    
-    if (result !== undefined && result.id === pressedID && result.shapeIndex === pressedShape) {
-        updateMaterial(result.type, result.id, result.shapeIndex, result.meshIndex, result.meshPartIndex, result.jointIndex);
-        setSelectedObject(result.id, result.type);
-    }
 }
 
 function killWindow() {
@@ -142,7 +84,7 @@ var SELECT_LIST = "luci_materialInspector_SelectionList";
 Selection.enableListHighlight(SELECT_LIST, {
     outlineUnoccludedColor: { red: 125, green: 255, blue: 225 }
 });
-function setSelectedObject(id, type) {
+function setInspectedObject(id, type) {
     Selection.clearSelectedItemsList(SELECT_LIST);
     if (id !== undefined && !Uuid.isNull(id)) {
         Selection.addToSelectedItemsList(SELECT_LIST, type.toLowerCase(), id);
@@ -151,24 +93,21 @@ function setSelectedObject(id, type) {
 
 function setWindow(window) {
     if (activeWindow !== undefined) {
-        setSelectedObject(Uuid.NULL, "");
+        setInspectedObject(Uuid.NULL, "");
        // activeWindow.closed.disconnect(killWindow);
         activeWindow.fromQml.disconnect(fromQml);
-        Controller.mousePressEvent.disconnect(mousePressEvent);
-        Controller.mouseReleaseEvent.disconnect(mouseReleaseEvent);
         activeWindow.close();
     }
     if (window !== undefined) {
        // window.closed.connect(killWindow);
         window.fromQml.connect(fromQml);
-        Controller.mousePressEvent.connect(mousePressEvent);
-        Controller.mouseReleaseEvent.connect(mouseReleaseEvent);
     }
     activeWindow = window;
 }
 
 function cleanup() {
     setWindow(undefined);
+    materialInspector.cleanup();
     Selection.disableListHighlight(SELECT_LIST);
 }
 
