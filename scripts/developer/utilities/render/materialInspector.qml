@@ -231,7 +231,7 @@ Rectangle {
         }
 
         Original.ScrollView {
-           // anchors.top: entityIDContainer.bottom
+            // TODO: Figure out why the ScrollView is no longer scrolling. Maybe it's because the height is calculated wrong
             height: root.height - entityIDContainer.height
             width: root.width
             clip: true

@@ -33,6 +33,7 @@ function updateGlobalBlacklist() {
 
 Inspector = function(onInspectShape) {
     this.onInspectShape = onInspectShape;
+    this.blacklist = [];
     inspectors.push(this);
 };
 

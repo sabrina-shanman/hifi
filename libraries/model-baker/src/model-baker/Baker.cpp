@@ -133,7 +133,7 @@ namespace baker {
         using Input = VaryingSet9<hfm::Model::Pointer, std::vector<hfm::Mesh>, std::vector<hfm::Joint>, QMap<int, glm::quat>, QHash<QString, int>, FlowData, std::vector<ShapeVertices>, std::vector<hfm::Shape>, Extents>;
         using Output = hfm::Model::Pointer;
         using JobModel = Job::ModelIO<BuildModelTask, Input, Output>;
-
+        
         void run(const BakeContextPointer& context, const Input& input, Output& output) {
             auto hfmModelOut = input.get0();
             hfmModelOut->meshes = input.get1();

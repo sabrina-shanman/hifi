@@ -87,27 +87,47 @@ Rectangle {
             Prop.PropFolderPanel {
                 label: "Tools"
                 panelFrameData: Component {
-                    Row {
-                        HifiControls.Button {
-                            text: "Engine"
-                            onClicked: {
-                                sendToScript({method: "openEngineInspectorView"}); 
+                    ColumnLayout {
+                        id: toolBox
+                        //anchors.left: parent.left;
+                        //anchors.right: parent.right;
+                        Row {
+                            anchors.left: parent.left;
+                            anchors.right: parent.right;
+                            height: 60
+                            HifiControls.Button {
+                                text: "Engine"
+                                onClicked: {
+                                    sendToScript({method: "openEngineInspectorView"});
+                                }
+                                width: parent.width / 3
                             }
-                            width:column.width / 3
+                            HifiControls.Button {
+                                text: "LOD"
+                                onClicked: {
+                                    sendToScript({method: "openEngineLODView"});
+                                }
+                                width: parent.width / 3
+                            }
+                            HifiControls.Button {
+                                text: "Material"
+                                onClicked: {
+                                    sendToScript({method: "openMaterialInspectorView"});
+                                }
+                                width: parent.width / 3
+                            }
                         }
-                        HifiControls.Button {
-                            text: "LOD"
-                            onClicked: {
-                                sendToScript({method: "openEngineLODView"}); 
+                        Row {
+                            anchors.left: parent.left;
+                            anchors.right: parent.right;
+                            height: 60
+                            HifiControls.Button {
+                                text: "Mesh"
+                                onClicked: {
+                                    sendToScript({method: "openMeshInspectorView"});
+                                }
+                                width: parent.width / 3
                             }
-                            width:column.width / 3
-                        }
-                        HifiControls.Button {
-                            text: "Material"
-                            onClicked: {
-                                sendToScript({method: "openMaterialInspectorView"}); 
-                            }
-                            width:column.width / 3
                         }
                     }
                 }

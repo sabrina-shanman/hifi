@@ -1,6 +1,7 @@
 
 
 var MaterialInspector = Script.require('./materialInspector.js');
+var MeshInspector = Script.require('./meshInspector.js');
 
 var Page = Script.require('../lib/skit/Page.js');
 
@@ -62,6 +63,7 @@ function openView() {
     pages.addPage('openEngineInspectorView', 'Render Engine Inspector', 'engineInspector.qml', 300, 400);
     pages.addPage('openEngineLODView', 'Render LOD', 'lod.qml', 300, 400);
     pages.addPage('openMaterialInspectorView', 'Material Inspector', 'materialInspector.qml', 300, 400, null, MaterialInspector.setWindow, MaterialInspector.setWindow);
+    pages.addPage('openMeshInspectorView', 'Mesh Inspector', 'meshInspector.qml', 300, 400, null, MeshInspector.setWindow, MeshInspector.setWindow);
 
     pages.open('Luci');
 

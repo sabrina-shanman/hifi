@@ -461,7 +461,7 @@ HFMModel* FBXSerializer::extractHFMModel(const hifi::VariantHash& mapping, const
 
     hfmModel.originalURL = url;
 
-    float unitScaleFactor = 1.0f;
+    float fbxUnitScaleFactor = 1.0f;
     glm::quat upAxisZRotation;
     bool applyUpAxisZRotation = false;
     glm::vec3 ambientColor;
@@ -507,7 +507,7 @@ HFMModel* FBXSerializer::extractHFMModel(const hifi::VariantHash& mapping, const
                             static const QVariant UP_AXIS = hifi::ByteArray("UpAxis");
                             const auto& subpropName = subobject.properties.at(0);
                             if (subpropName == UNIT_SCALE_FACTOR) {
-                                unitScaleFactor = subobject.properties.at(index).toFloat();
+                                fbxUnitScaleFactor = subobject.properties.at(index).toFloat();
                             } else if (subpropName == AMBIENT_COLOR) {
                                 ambientColor = getVec3(subobject.properties, index);
                             } else if (subpropName == UP_AXIS) {
@@ -1238,7 +1238,8 @@ HFMModel* FBXSerializer::extractHFMModel(const hifi::VariantHash& mapping, const
     }
 
     // get offset transform from mapping
-    float offsetScale = mapping.value("scale", 1.0f).toFloat() * unitScaleFactor * METERS_PER_CENTIMETER;
+    float unitScaleFactor = fbxUnitScaleFactor * METERS_PER_CENTIMETER;
+    float offsetScale = mapping.value("scale", 1.0f).toFloat() * unitScaleFactor;
     glm::quat offsetRotation = glm::quat(glm::radians(glm::vec3(mapping.value("rx").toFloat(),
             mapping.value("ry").toFloat(), mapping.value("rz").toFloat())));
     hfmModel.offset = glm::translate(glm::vec3(mapping.value("tx").toFloat(), mapping.value("ty").toFloat(),
