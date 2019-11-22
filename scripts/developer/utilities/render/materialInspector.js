@@ -62,12 +62,6 @@ function updateMaterial(result) {
     toQml({method: "setMaterialJSON", params: {materialJSONText: materialJSONText}});
 }
 
-function killWindow() {
-    activeWindow = undefined;
-
- //   setWindow(undefined);
-}
-
 function toQml(message) {
     if (activeWindow === undefined) {
         return; // Shouldn't happen
@@ -94,12 +88,10 @@ function setInspectedObject(id, type) {
 function setWindow(window) {
     if (activeWindow !== undefined) {
         setInspectedObject(Uuid.NULL, "");
-       // activeWindow.closed.disconnect(killWindow);
         activeWindow.fromQml.disconnect(fromQml);
         activeWindow.close();
     }
     if (window !== undefined) {
-       // window.closed.connect(killWindow);
         window.fromQml.connect(fromQml);
     }
     activeWindow = window;
