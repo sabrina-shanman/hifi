@@ -15,7 +15,6 @@ var activeWindow;
 
 function onInspectShapeMaterial(result) {
     updateMaterial(result);
-    setInspectedObject(result.id, result.type);
 }
 
 var materialInspector = new Inspector(onInspectShapeMaterial);
@@ -74,20 +73,8 @@ function fromQml(message) {
     // No cases currently
 }
 
-var SELECT_LIST = "luci_materialInspector_SelectionList";
-Selection.enableListHighlight(SELECT_LIST, {
-    outlineUnoccludedColor: { red: 125, green: 255, blue: 225 }
-});
-function setInspectedObject(id, type) {
-    Selection.clearSelectedItemsList(SELECT_LIST);
-    if (id !== undefined && !Uuid.isNull(id)) {
-        Selection.addToSelectedItemsList(SELECT_LIST, type.toLowerCase(), id);
-    }
-}
-
 function setWindow(window) {
     if (activeWindow !== undefined) {
-        setInspectedObject(Uuid.NULL, "");
         activeWindow.fromQml.disconnect(fromQml);
         activeWindow.close();
     }
@@ -95,12 +82,12 @@ function setWindow(window) {
         window.fromQml.connect(fromQml);
     }
     activeWindow = window;
+    materialInspector.setWindow(window);
 }
 
 function cleanup() {
     setWindow(undefined);
     materialInspector.cleanup();
-    Selection.disableListHighlight(SELECT_LIST);
 }
 
 Script.scriptEnding.connect(cleanup);

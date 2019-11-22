@@ -112,6 +112,7 @@ function setWindow(window) {
         window.fromQml.connect(fromQml);
     }
     activeWindow = window;
+    meshInspector.setWindow(window);
 }
 
 function cleanup() {

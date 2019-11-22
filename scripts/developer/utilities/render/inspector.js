@@ -17,6 +17,39 @@ var globalBlacklist = [];
 
 var pressedID;
 var pressedShape;
+var pressedType;
+
+var SELECT_LIST = "luci_materialInspector_SelectionList";
+Selection.enableListHighlight(SELECT_LIST, {
+    outlineUnoccludedColor: { red: 125, green: 255, blue: 225 }
+});
+function setInspectedObject(id, type) {
+    Selection.clearSelectedItemsList(SELECT_LIST);
+    if (id !== undefined && !Uuid.isNull(id)) {
+        Selection.addToSelectedItemsList(SELECT_LIST, type.toLowerCase(), id);
+    }
+}
+
+function shouldInspect() {
+    var shouldInspect = false;
+    for (var i = 0; i < inspectors.length; i+=1) {
+        var window = inspectors[i].window;
+        if (window !== undefined) {
+            shouldInspect = true;
+            break;
+        }
+    }
+    return shouldInspect;
+}
+
+function updateInspectState() {
+    if (shouldInspect() && pressedID != Uuid.NULL) {
+        setInspectedObject(pressedID, pressedType);
+    } else {
+        pressedID = Uuid.NULL;
+        setInspectedObject(Uuid.NULL, "");
+    }
+}
 
 function updateGlobalBlacklist() {
     globalBlacklist = [];
@@ -34,11 +67,13 @@ function updateGlobalBlacklist() {
 Inspector = function(onInspectShape) {
     this.onInspectShape = onInspectShape;
     this.blacklist = [];
+    this.window = undefined; // Do not show inspector glow if no inspector window is open
     inspectors.push(this);
 };
 
 Inspector.prototype.cleanup = function() {
     this._setBlacklist([]);
+    this.setWindow(undefined);
     var inspectorIndex = inspectors.indexOf(this);
     inspectors.splice(inspectorIndex, 1); // Remove thyself
 };
@@ -53,6 +88,11 @@ Inspector.prototype._setBlacklist = function(blacklist) {
     if (different) {
         updateGlobalBlacklist();
     }
+};
+
+Inspector.prototype.setWindow = function(window) {
+    this.window = window;
+    updateInspectState();
 };
 
 Inspector.prototype._shouldIgnore = function(entityOrAvatar) {
@@ -114,6 +154,7 @@ function mousePressEvent(event) {
     if (result !== undefined) {
         pressedID = result.id;
         pressedShape = result.shapeIndex;
+        pressedType = result.type;
     }
 }
 
@@ -130,6 +171,8 @@ function mouseReleaseEvent(event) {
             inspector._inspectShape(result);
         }
     }
+    
+    updateInspectState();
 }
 
 Controller.mousePressEvent.connect(mousePressEvent);
@@ -144,6 +187,7 @@ function cleanup() {
     globalBlacklist = [];
     Controller.mousePressEvent.disconnect(mousePressEvent);
     Controller.mouseReleaseEvent.disconnect(mouseReleaseEvent);
+    Selection.disableListHighlight(SELECT_LIST);
 }
 
 Script.scriptEnding.connect(cleanup);
